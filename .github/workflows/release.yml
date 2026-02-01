@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            name: threader-darwin-arm64
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            name: threader-darwin-x86_64
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: threader-linux-x86_64
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            name: threader-linux-arm64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/threader dist/${{ matrix.name }}
+          cd dist
+          tar czf ${{ matrix.name }}.tar.gz ${{ matrix.name }}
+          shasum -a 256 ${{ matrix.name }}.tar.gz > ${{ matrix.name }}.tar.gz.sha256
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: dist/${{ matrix.name }}.tar.gz*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect release files
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.sha256' \) -exec cp {} release/ \;
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: release/*
+
+  homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get tag version
+        id: tag
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Download checksums
+        run: |
+          mkdir -p checksums
+          for name in threader-darwin-arm64 threader-darwin-x86_64 threader-linux-x86_64 threader-linux-arm64; do
+            curl -fsSL "https://github.com/sestinj/threader/releases/download/v${{ steps.tag.outputs.version }}/${name}.tar.gz.sha256" -o "checksums/${name}.sha256"
+          done
+
+      - name: Read checksums
+        id: sha
+        run: |
+          echo "darwin_arm64=$(awk '{print $1}' checksums/threader-darwin-arm64.sha256)" >> $GITHUB_OUTPUT
+          echo "darwin_x86_64=$(awk '{print $1}' checksums/threader-darwin-x86_64.sha256)" >> $GITHUB_OUTPUT
+          echo "linux_x86_64=$(awk '{print $1}' checksums/threader-linux-x86_64.sha256)" >> $GITHUB_OUTPUT
+          echo "linux_arm64=$(awk '{print $1}' checksums/threader-linux-arm64.sha256)" >> $GITHUB_OUTPUT
+
+      - name: Update Homebrew tap
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          repository: sestinj/homebrew-tap
+          event-type: update-formula
+          client-payload: |
+            {
+              "formula": "threader",
+              "version": "${{ steps.tag.outputs.version }}",
+              "darwin_arm64_sha256": "${{ steps.sha.outputs.darwin_arm64 }}",
+              "darwin_x86_64_sha256": "${{ steps.sha.outputs.darwin_x86_64 }}",
+              "linux_x86_64_sha256": "${{ steps.sha.outputs.linux_x86_64 }}",
+              "linux_arm64_sha256": "${{ steps.sha.outputs.linux_arm64 }}"
+            }

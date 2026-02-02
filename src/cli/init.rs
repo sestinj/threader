@@ -7,6 +7,15 @@ use crate::storage::local::LocalStorage;
 
 /// Initialize Threader: create directories and install Claude Code hooks.
 pub fn run_init() -> Result<()> {
+    init_core()?;
+
+    println!("Threader initialized successfully.");
+    println!("Run `threader daemon` to start the daemon.");
+    Ok(())
+}
+
+/// Core initialization logic. Idempotent — safe to call on every update or start.
+pub fn init_core() -> Result<()> {
     let base_dir = LocalStorage::default_base_dir()?;
     let storage = LocalStorage::new(base_dir);
     storage.init()?;
@@ -21,8 +30,6 @@ pub fn run_init() -> Result<()> {
         }
     }
 
-    println!("Threader initialized successfully.");
-    println!("Run `threader daemon` to start the daemon.");
     Ok(())
 }
 

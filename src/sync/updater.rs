@@ -138,6 +138,12 @@ impl AutoUpdater {
         }
 
         self.download_and_install(&release).await?;
+
+        // Re-run init to pick up any new features (hooks, URL scheme, etc.)
+        if let Err(e) = crate::cli::init::init_core() {
+            warn!("Post-update init failed: {}", e);
+        }
+
         self.trigger_restart()?;
         Ok(true)
     }
@@ -356,6 +362,11 @@ pub async fn run_manual_update() -> Result<()> {
 
     println!("Downloading and installing...");
     updater.download_and_install(&release).await?;
+
+    // Re-run init to pick up any new features (hooks, URL scheme, etc.)
+    println!("Reinitializing...");
+    crate::cli::init::init_core()?;
+
     println!("Updated to v{}!", release.version);
     println!("Restart the daemon: threader stop && threader start");
     Ok(())

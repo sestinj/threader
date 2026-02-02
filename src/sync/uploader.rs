@@ -9,6 +9,7 @@ use crate::auth;
 use crate::hooks::{QueueAction, QueueEntry};
 use crate::storage::local::LocalStorage;
 use crate::storage::queue::UploadQueue;
+use crate::sync::images::{line_has_images, ImageProcessor};
 
 const UPLOAD_INTERVAL_SECS: u64 = 10;
 const MAX_RETRY_ATTEMPTS: u32 = 10;
@@ -172,8 +173,24 @@ impl BackgroundUploader {
         }
 
         let lines_to_send: Vec<&str> = all_lines[start..end].to_vec();
-        let lines_str = lines_to_send.join("\n");
-        let line_count = lines_to_send.len();
+
+        // Process lines through image processor — rewrite image blocks with URLs
+        let image_processor =
+            ImageProcessor::new(self.client.clone(), convex_site_url());
+        let mut processed_lines: Vec<String> = Vec::with_capacity(lines_to_send.len());
+        for line in &lines_to_send {
+            if line_has_images(line) {
+                let processed = image_processor
+                    .process_line(line, &entry.session_id, token)
+                    .await;
+                processed_lines.push(processed);
+            } else {
+                processed_lines.push(line.to_string());
+            }
+        }
+
+        let lines_str = processed_lines.join("\n");
+        let line_count = processed_lines.len();
 
         let body = serde_json::json!({
             "lines": lines_str,

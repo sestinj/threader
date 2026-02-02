@@ -9,7 +9,7 @@ use crate::hooks::HookEvent;
 use crate::storage::local::LocalStorage;
 
 #[derive(Parser)]
-#[command(name = "threader", about = "Sync Claude Code sessions to the cloud", version)]
+#[command(name = "threader", about = "Sync and share Claude Code sessions. Private by default", version)]
 pub struct Cli {
     #[command(subcommand)]
     command: Command,

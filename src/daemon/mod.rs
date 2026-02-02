@@ -32,6 +32,17 @@ pub async fn run(base_dir: PathBuf) -> Result<()> {
 
     info!("Threader daemon starting");
 
+    // Set Sentry user context from stored credentials (if logged in)
+    if let Ok(Some(creds)) = crate::auth::storage::load() {
+        sentry::configure_scope(|scope| {
+            scope.set_user(Some(sentry::User {
+                id: Some(creds.user_id.clone()),
+                email: creds.email.clone(),
+                ..Default::default()
+            }));
+        });
+    }
+
     // Replay any spooled messages from when the daemon was down
     replay_spool(&storage, &queue);
 

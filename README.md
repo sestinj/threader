@@ -7,7 +7,7 @@ Sync your [Claude Code](https://claude.ai) sessions to the cloud for easy sharin
 ### Quick install (macOS / Linux)
 
 ```sh
-curl -fsSL https://threader.dev/install.sh | sh
+curl -fsSL https://threader.sh/install.sh | sh
 ```
 
 ### Homebrew
@@ -31,7 +31,7 @@ threader init     # install Claude Code hooks
 threader start    # start the background daemon
 ```
 
-That's it. Threader runs invisibly in the background, syncing your sessions to your dashboard at [threader.dev](https://threader.dev).
+That's it. Threader runs invisibly in the background, syncing your sessions to your dashboard at [threader.sh](https://threader.sh).
 
 ## Commands
 

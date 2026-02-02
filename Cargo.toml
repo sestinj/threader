@@ -5,7 +5,7 @@ edition = "2021"
 description = "Daemon that syncs Claude Code sessions to the cloud"
 license = "Apache-2.0"
 repository = "https://github.com/sestinj/threader"
-homepage = "https://threader.dev"
+homepage = "https://threader.sh"
 
 [dependencies]
 anyhow = "1"

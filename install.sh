@@ -67,10 +67,8 @@ else
   echo ""
 fi
 
-# Run init
+# Start daemon (also runs init + installs hooks) and log in
 if [ -t 0 ]; then
-  "$INSTALL_DIR/threader" init
+  "$INSTALL_DIR/threader" start
+  "$INSTALL_DIR/threader" login
 fi
-
-echo ""
-echo "Run 'threader login' to get started."

@@ -345,6 +345,9 @@ pub async fn run_manual_update() -> Result<()> {
 
     if release.version <= current {
         println!("Already up to date (v{})", current);
+        // Always re-run init to ensure hooks match the current binary
+        println!("Reinitializing hooks...");
+        crate::cli::init::init_core()?;
         return Ok(());
     }
 
@@ -357,6 +360,9 @@ pub async fn run_manual_update() -> Result<()> {
             InstallMethod::Direct => unreachable!(),
         };
         println!("Update with: {}", hint);
+        // Re-run init so hooks point to the current binary with correct args
+        println!("Reinitializing hooks...");
+        crate::cli::init::init_core()?;
         return Ok(());
     }
 
@@ -364,7 +370,7 @@ pub async fn run_manual_update() -> Result<()> {
     updater.download_and_install(&release).await?;
 
     // Re-run init to pick up any new features (hooks, URL scheme, etc.)
-    println!("Reinitializing...");
+    println!("Reinitializing hooks...");
     crate::cli::init::init_core()?;
 
     println!("Updated to v{}!", release.version);

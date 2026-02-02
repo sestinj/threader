@@ -57,6 +57,12 @@ enum Command {
         url: String,
     },
 
+    /// Resume a Claude Code session (downloads from cloud if needed)
+    Resume {
+        /// The session ID to resume
+        session_id: String,
+    },
+
     /// Check for and install updates
     Update,
 }
@@ -125,6 +131,7 @@ impl Cli {
             }
             Command::Whoami => show_whoami(),
             Command::HandleUrl { url } => resume::handle_url(&url).await,
+            Command::Resume { session_id } => resume::resume_session(&session_id).await,
             Command::Update => crate::sync::updater::run_manual_update().await,
         }
     }

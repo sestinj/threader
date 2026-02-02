@@ -29,7 +29,7 @@ struct Usage {
 /// Read aggregated cost data for a session from Claude Code's `__store.db`.
 ///
 /// Opens the database read-only, joins `base_messages` to `assistant_messages`
-/// on `message_id`, filters by `session_id`, and sums cost and usage fields.
+/// on `uuid`, filters by `session_id`, and sums cost and usage fields.
 pub fn read_session_cost(session_id: &str) -> Result<Option<SessionCost>> {
     let claude_dir = dirs::home_dir()
         .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))?
@@ -50,7 +50,7 @@ pub fn read_session_cost(session_id: &str) -> Result<Option<SessionCost>> {
     let cost_result: rusqlite::Result<f64> = conn.query_row(
         "SELECT COALESCE(SUM(a.cost_usd), 0)
          FROM assistant_messages a
-         JOIN base_messages b ON a.message_id = b.message_id
+         JOIN base_messages b ON a.uuid = b.uuid
          WHERE b.session_id = ?1",
         [session_id],
         |row| row.get(0),
@@ -68,7 +68,7 @@ pub fn read_session_cost(session_id: &str) -> Result<Option<SessionCost>> {
     let mut stmt = conn.prepare(
         "SELECT a.message
          FROM assistant_messages a
-         JOIN base_messages b ON a.message_id = b.message_id
+         JOIN base_messages b ON a.uuid = b.uuid
          WHERE b.session_id = ?1",
     )?;
 

@@ -49,6 +49,16 @@ pub struct SessionMeta {
     pub end_reason: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub total_cost_usd: Option<f64>,
+    #[serde(default)]
+    pub total_input_tokens: Option<u64>,
+    #[serde(default)]
+    pub total_output_tokens: Option<u64>,
+    #[serde(default)]
+    pub total_cache_read_tokens: Option<u64>,
+    #[serde(default)]
+    pub total_cache_creation_tokens: Option<u64>,
 }
 
 /// Tracks how far we've synced a session's transcript.

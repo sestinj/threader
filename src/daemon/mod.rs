@@ -6,11 +6,12 @@ use std::sync::Arc;
 use anyhow::Result;
 use chrono::Utc;
 use tokio::sync::{mpsc, Notify};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::hooks::{HookEvent, HookMessage, SessionMeta};
 use crate::storage::local::LocalStorage;
 use crate::storage::queue::UploadQueue;
+use crate::sync::cost;
 use crate::sync::cursor::CursorTracker;
 use crate::sync::updater::AutoUpdater;
 use crate::sync::uploader::BackgroundUploader;
@@ -127,6 +128,11 @@ fn handle_session_start(
         ended_at: None,
         end_reason: None,
         tags: vec![],
+        total_cost_usd: None,
+        total_input_tokens: None,
+        total_output_tokens: None,
+        total_cache_read_tokens: None,
+        total_cache_creation_tokens: None,
     };
 
     storage.create_session(&meta)?;
@@ -146,6 +152,28 @@ fn ensure_session(storage: &LocalStorage, queue: &UploadQueue, msg: &HookMessage
         input.session_id
     );
     handle_session_start(storage, queue, msg)
+}
+
+/// Read cost data from Claude Code's store DB and update the session meta.
+fn refresh_cost(storage: &LocalStorage, session_id: &str) {
+    match cost::read_session_cost(session_id) {
+        Ok(Some(c)) => {
+            if let Ok(mut meta) = storage.read_meta(session_id) {
+                meta.total_cost_usd = Some(c.total_cost_usd);
+                meta.total_input_tokens = Some(c.total_input_tokens);
+                meta.total_output_tokens = Some(c.total_output_tokens);
+                meta.total_cache_read_tokens = Some(c.total_cache_read_tokens);
+                meta.total_cache_creation_tokens = Some(c.total_cache_creation_tokens);
+                if let Err(e) = storage.update_meta(&meta) {
+                    warn!("Failed to update cost meta for {}: {}", session_id, e);
+                }
+            }
+        }
+        Ok(None) => {}
+        Err(e) => {
+            warn!("Failed to read cost for session {}: {}", session_id, e);
+        }
+    }
 }
 
 fn handle_stop(
@@ -173,6 +201,9 @@ fn handle_stop(
 
     // Update cursor
     tracker.advance(&input.session_id, total_lines)?;
+
+    // Read cost data from Claude Code's store DB
+    refresh_cost(storage, &input.session_id);
 
     info!(
         "Synced {} new lines for session {} (lines {}-{})",
@@ -211,6 +242,9 @@ fn handle_session_end(
     meta.ended_at = Some(Utc::now());
     meta.end_reason = input.reason.clone();
     storage.update_meta(&meta)?;
+
+    // Read cost data from Claude Code's store DB
+    refresh_cost(storage, &input.session_id);
 
     // Queue finalize
     queue.enqueue_finalize(&input.session_id)?;

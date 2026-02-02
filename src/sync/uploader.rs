@@ -192,11 +192,27 @@ impl BackgroundUploader {
         let lines_str = processed_lines.join("\n");
         let line_count = processed_lines.len();
 
-        let body = serde_json::json!({
+        let meta = self.storage.read_meta(&entry.session_id)?;
+        let mut body = serde_json::json!({
             "lines": lines_str,
             "line_count": line_count,
             "start_line": start,
         });
+        if let Some(cost) = meta.total_cost_usd {
+            body["total_cost_usd"] = serde_json::json!(cost);
+        }
+        if let Some(tokens) = meta.total_input_tokens {
+            body["total_input_tokens"] = serde_json::json!(tokens);
+        }
+        if let Some(tokens) = meta.total_output_tokens {
+            body["total_output_tokens"] = serde_json::json!(tokens);
+        }
+        if let Some(tokens) = meta.total_cache_read_tokens {
+            body["total_cache_read_tokens"] = serde_json::json!(tokens);
+        }
+        if let Some(tokens) = meta.total_cache_creation_tokens {
+            body["total_cache_creation_tokens"] = serde_json::json!(tokens);
+        }
 
         let resp = self
             .client
@@ -231,6 +247,21 @@ impl BackgroundUploader {
         }
         if let Some(ended_at) = meta.ended_at {
             body["ended_at"] = serde_json::json!(ended_at.to_rfc3339());
+        }
+        if let Some(cost) = meta.total_cost_usd {
+            body["total_cost_usd"] = serde_json::json!(cost);
+        }
+        if let Some(tokens) = meta.total_input_tokens {
+            body["total_input_tokens"] = serde_json::json!(tokens);
+        }
+        if let Some(tokens) = meta.total_output_tokens {
+            body["total_output_tokens"] = serde_json::json!(tokens);
+        }
+        if let Some(tokens) = meta.total_cache_read_tokens {
+            body["total_cache_read_tokens"] = serde_json::json!(tokens);
+        }
+        if let Some(tokens) = meta.total_cache_creation_tokens {
+            body["total_cache_creation_tokens"] = serde_json::json!(tokens);
         }
 
         let resp = self

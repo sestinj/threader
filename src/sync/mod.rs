@@ -1,3 +1,4 @@
+pub mod cost;
 pub mod cursor;
 pub mod images;
 pub mod updater;

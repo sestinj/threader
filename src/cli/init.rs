@@ -23,6 +23,22 @@ fn install_hooks() -> Result<()> {
     let home = dirs::home_dir().context("Could not determine home directory")?;
     let settings_path = home.join(".claude").join("settings.json");
 
+    // Resolve the absolute path to the threader binary so hooks work in
+    // non-interactive shells (e.g. /bin/sh) that don't load the user's PATH.
+    let threader_bin = home
+        .join(".threader")
+        .join("bin")
+        .join("threader");
+    let threader_cmd = if threader_bin.exists() {
+        threader_bin
+            .to_str()
+            .context("Non-UTF8 path to threader binary")?
+            .to_string()
+    } else {
+        // Fall back to bare command name if not installed in the default location
+        "threader".to_string()
+    };
+
     // Read existing settings or start fresh
     let mut settings: serde_json::Value = if settings_path.exists() {
         let data = fs::read_to_string(&settings_path)?;
@@ -43,11 +59,12 @@ fn install_hooks() -> Result<()> {
         .context("hooks is not an object")?;
 
     // Install each hook, preserving existing hooks
-    for (event, command) in [
-        ("SessionStart", "threader hook session-start"),
-        ("Stop", "threader hook stop"),
-        ("SessionEnd", "threader hook session-end"),
+    for (event, subcommand) in [
+        ("SessionStart", "hook session-start"),
+        ("Stop", "hook stop"),
+        ("SessionEnd", "hook session-end"),
     ] {
+        let command = format!("{} {}", threader_cmd, subcommand);
         let hook_entry = serde_json::json!({
             "type": "command",
             "command": command

@@ -13,6 +13,14 @@ pub fn run_init() -> Result<()> {
 
     install_hooks()?;
 
+    #[cfg(target_os = "macos")]
+    {
+        match super::app_bundle::create_app_bundle() {
+            Ok(()) => println!("URL scheme registered (threader://)."),
+            Err(e) => eprintln!("Warning: failed to register URL scheme: {e}"),
+        }
+    }
+
     println!("Threader initialized successfully.");
     println!("Run `threader daemon` to start the daemon.");
     Ok(())

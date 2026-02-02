@@ -1,5 +1,9 @@
+pub mod app_bundle;
 pub mod hook;
+pub mod hydrate;
 pub mod init;
+pub mod resume;
+pub mod terminal;
 
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -47,6 +51,14 @@ enum Command {
     /// Show current authenticated user
     Whoami,
 
+    /// Handle a threader:// deep link URL
+    HandleUrl {
+        /// The full URL (e.g. threader://resume/<sessionId>?cwd=<path>)
+        url: String,
+    },
+
+    /// Check for and install updates
+    Update,
 }
 
 #[derive(Subcommand)]
@@ -112,6 +124,8 @@ impl Cli {
                 show_status(base_dir)
             }
             Command::Whoami => show_whoami(),
+            Command::HandleUrl { url } => resume::handle_url(&url).await,
+            Command::Update => crate::sync::updater::run_manual_update().await,
         }
     }
 }

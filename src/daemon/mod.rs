@@ -1,16 +1,18 @@
 pub mod socket;
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::Utc;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Notify};
 use tracing::{error, info};
 
 use crate::hooks::{HookEvent, HookMessage, SessionMeta};
 use crate::storage::local::LocalStorage;
 use crate::storage::queue::UploadQueue;
 use crate::sync::cursor::CursorTracker;
+use crate::sync::updater::AutoUpdater;
 use crate::sync::uploader::BackgroundUploader;
 
 use self::socket::SocketServer;
@@ -36,6 +38,15 @@ pub async fn run(base_dir: PathBuf) -> Result<()> {
         }
     });
 
+    // Spawn background auto-updater
+    let restart_notify = Arc::new(Notify::new());
+    let updater = AutoUpdater::new(restart_notify.clone());
+    tokio::spawn(async move {
+        if let Err(e) = updater.run().await {
+            error!("Auto-updater error: {}", e);
+        }
+    });
+
     // Spawn socket server
     tokio::spawn(async move {
         if let Err(e) = socket_server.run(tx).await {
@@ -43,8 +54,36 @@ pub async fn run(base_dir: PathBuf) -> Result<()> {
         }
     });
 
-    // Process incoming hook events
-    process_events(rx, storage, queue).await
+    // Set up SIGTERM handler
+    #[cfg(unix)]
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+
+    // Process events until shutdown signal
+    #[cfg(unix)]
+    {
+        tokio::select! {
+            result = process_events(rx, storage, queue) => result,
+            _ = sigterm.recv() => {
+                info!("SIGTERM received, shutting down");
+                Ok(())
+            },
+            _ = restart_notify.notified() => {
+                info!("Restarting for update");
+                Ok(())
+            },
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        tokio::select! {
+            result = process_events(rx, storage, queue) => result,
+            _ = restart_notify.notified() => {
+                info!("Restarting for update");
+                Ok(())
+            },
+        }
+    }
 }
 
 async fn process_events(

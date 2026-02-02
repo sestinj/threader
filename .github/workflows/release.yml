@@ -75,7 +75,36 @@ jobs:
       - name: Collect release files
         run: |
           mkdir -p release
-          find artifacts -type f \( -name '*.tar.gz' -o -name '*.sha256' \) -exec cp {} release/ \;
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.sha256' -o -name '*.sig' \) -exec cp {} release/ \;
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyNaCl for signing
+        run: pip install pynacl
+
+      - name: Sign release tarballs
+        env:
+          RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          python3 -c "
+          import base64, glob, os
+          from nacl.signing import SigningKey
+
+          key_b64 = os.environ['RELEASE_SIGNING_KEY']
+          signing_key = SigningKey(base64.b64decode(key_b64))
+
+          for tarball in glob.glob('release/*.tar.gz'):
+              with open(tarball, 'rb') as f:
+                  data = f.read()
+              signed = signing_key.sign(data)
+              sig_path = tarball + '.sig'
+              with open(sig_path, 'wb') as f:
+                  f.write(signed.signature)
+              print(f'Signed: {tarball} -> {sig_path}')
+          "
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

@@ -1,6 +1,6 @@
 [package]
 name = "threader"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 description = "Daemon that syncs Claude Code sessions to the cloud"
 license = "Apache-2.0"
@@ -16,9 +16,11 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
 directories = "5"
 dirs = "5"
+ed25519-dalek = { version = "2", features = ["std"] }
 libc = "0.2"
 open = "5"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+semver = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
@@ -26,6 +28,7 @@ thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url = "2"
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]

@@ -2,7 +2,7 @@
 set -e
 
 REPO="sestinj/threader"
-INSTALL_DIR="$HOME/.threader/bin"
+INSTALL_DIR="$HOME/.local/bin"
 
 # Detect OS
 OS="$(uname -s)"

@@ -25,10 +25,7 @@ fn install_hooks() -> Result<()> {
 
     // Resolve the absolute path to the threader binary so hooks work in
     // non-interactive shells (e.g. /bin/sh) that don't load the user's PATH.
-    let threader_bin = home
-        .join(".threader")
-        .join("bin")
-        .join("threader");
+    let threader_bin = home.join(".local").join("bin").join("threader");
     let threader_cmd = if threader_bin.exists() {
         threader_bin
             .to_str()

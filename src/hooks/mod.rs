@@ -31,6 +31,10 @@ pub struct HookMessage {
     pub event: HookEvent,
     pub input: HookInput,
     pub timestamp: DateTime<Utc>,
+    /// Which agent produced this event (e.g. "claude-code", "cursor").
+    /// None for legacy messages.
+    #[serde(default)]
+    pub agent: Option<String>,
 }
 
 /// Session metadata stored locally.
@@ -42,6 +46,10 @@ pub struct SessionMeta {
     pub cwd: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
+    /// Which agent produced this session (e.g. "claude-code", "cursor").
+    /// None for legacy sessions (assumed claude-code).
+    #[serde(default)]
+    pub agent: Option<String>,
     pub started_at: DateTime<Utc>,
     #[serde(default)]
     pub ended_at: Option<DateTime<Utc>>,

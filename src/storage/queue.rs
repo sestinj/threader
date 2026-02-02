@@ -26,10 +26,15 @@ impl UploadQueue {
     pub fn enqueue(&self, entry: &QueueEntry) -> Result<()> {
         fs::create_dir_all(&self.pending_dir)?;
 
+        let action_str = serde_json::to_value(&entry.action)
+            .ok()
+            .and_then(|v| v.as_str().map(String::from))
+            .unwrap_or_else(|| format!("{:?}", entry.action).to_lowercase());
         let filename = format!(
-            "{}_{}.json",
+            "{}_{}_{}.json",
             entry.created_at.timestamp_millis(),
-            entry.session_id
+            entry.session_id,
+            action_str
         );
         let path = self.pending_dir.join(&filename);
         let tmp = path.with_extension("tmp");

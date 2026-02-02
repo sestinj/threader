@@ -31,6 +31,7 @@ impl LocalStorage {
             self.sessions_dir(),
             self.queue_dir(),
             self.pending_dir(),
+            self.spool_dir(),
             self.logs_dir(),
         ];
         for dir in &dirs {
@@ -198,6 +199,24 @@ impl LocalStorage {
         }
         Ok(sessions)
     }
+
+    /// List sessions that haven't ended yet (ended_at is None).
+    pub fn list_active_sessions(&self) -> Result<Vec<SessionMeta>> {
+        let mut active = Vec::new();
+        for session_id in self.list_sessions()? {
+            if let Ok(meta) = self.read_meta(&session_id) {
+                if meta.ended_at.is_none() {
+                    active.push(meta);
+                }
+            }
+        }
+        Ok(active)
+    }
+
+    /// Path to the spool directory for messages saved when daemon was down.
+    pub fn spool_dir(&self) -> PathBuf {
+        self.base_dir.join("spool")
+    }
 }
 
 #[cfg(test)]
@@ -224,6 +243,11 @@ mod tests {
             ended_at: None,
             end_reason: None,
             tags: vec![],
+            total_cost_usd: None,
+            total_input_tokens: None,
+            total_output_tokens: None,
+            total_cache_read_tokens: None,
+            total_cache_creation_tokens: None,
         }
     }
 

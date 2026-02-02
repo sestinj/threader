@@ -1,5 +1,6 @@
 pub mod socket;
 
+use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -27,9 +28,15 @@ pub async fn run(base_dir: PathBuf) -> Result<()> {
     let uploader_queue = UploadQueue::new(base_dir.clone());
     let socket_server = SocketServer::new(storage.socket_path());
 
-    let (tx, rx) = mpsc::channel::<HookMessage>(256);
+    let (tx, mut rx) = mpsc::channel::<HookMessage>(256);
 
     info!("Threader daemon starting");
+
+    // Replay any spooled messages from when the daemon was down
+    replay_spool(&storage, &queue);
+
+    // Catch up any active sessions that may have advanced while daemon was down
+    catch_up_active_sessions(&storage, &queue);
 
     // Spawn background uploader
     let uploader = BackgroundUploader::new(uploader_queue, base_dir.clone());
@@ -60,55 +67,181 @@ pub async fn run(base_dir: PathBuf) -> Result<()> {
     let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
 
     // Process events until shutdown signal
+    let shutdown_reason;
     #[cfg(unix)]
     {
-        tokio::select! {
-            result = process_events(rx, storage, queue) => result,
-            _ = sigterm.recv() => {
-                info!("SIGTERM received, shutting down");
-                Ok(())
-            },
-            _ = restart_notify.notified() => {
-                info!("Restarting for update");
-                Ok(())
-            },
-        }
+        shutdown_reason = loop {
+            tokio::select! {
+                msg = rx.recv() => {
+                    match msg {
+                        Some(msg) => handle_event(&storage, &queue, &msg),
+                        None => break "channel closed",
+                    }
+                },
+                _ = sigterm.recv() => break "SIGTERM",
+                _ = restart_notify.notified() => break "update restart",
+            }
+        };
     }
 
     #[cfg(not(unix))]
     {
-        tokio::select! {
-            result = process_events(rx, storage, queue) => result,
-            _ = restart_notify.notified() => {
-                info!("Restarting for update");
-                Ok(())
-            },
-        }
-    }
-}
-
-async fn process_events(
-    mut rx: mpsc::Receiver<HookMessage>,
-    storage: LocalStorage,
-    queue: UploadQueue,
-) -> Result<()> {
-    info!("Session manager ready, waiting for events");
-
-    while let Some(msg) = rx.recv().await {
-        let session_id = &msg.input.session_id;
-
-        let result = match msg.event {
-            HookEvent::SessionStart => handle_session_start(&storage, &queue, &msg),
-            HookEvent::Stop => handle_stop(&storage, &queue, &msg),
-            HookEvent::SessionEnd => handle_session_end(&storage, &queue, &msg),
+        shutdown_reason = loop {
+            tokio::select! {
+                msg = rx.recv() => {
+                    match msg {
+                        Some(msg) => handle_event(&storage, &queue, &msg),
+                        None => break "channel closed",
+                    }
+                },
+                _ = restart_notify.notified() => break "update restart",
+            }
         };
+    }
 
-        if let Err(e) = result {
-            error!("Error handling {:?} for session {}: {}", msg.event, session_id, e);
-        }
+    // Drain any remaining messages in the channel before exiting
+    info!("{}, draining remaining events", shutdown_reason);
+    rx.close();
+    let mut drained = 0;
+    while let Ok(msg) = rx.try_recv() {
+        handle_event(&storage, &queue, &msg);
+        drained += 1;
+    }
+    if drained > 0 {
+        info!("Drained {} events before shutdown", drained);
     }
 
     Ok(())
+}
+
+/// Replay spooled hook messages that were saved when the daemon was unreachable.
+fn replay_spool(storage: &LocalStorage, queue: &UploadQueue) {
+    let spool_dir = storage.spool_dir();
+    if !spool_dir.exists() {
+        return;
+    }
+
+    let mut entries: Vec<_> = match fs::read_dir(&spool_dir) {
+        Ok(rd) => rd.filter_map(|e| e.ok()).collect(),
+        Err(e) => {
+            warn!("Failed to read spool directory: {}", e);
+            return;
+        }
+    };
+    // Sort by filename (timestamp-prefixed) to replay in order
+    entries.sort_by_key(|e| e.file_name());
+
+    let mut replayed = 0;
+    for entry in &entries {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            continue;
+        }
+        match fs::read_to_string(&path) {
+            Ok(data) => match serde_json::from_str::<HookMessage>(&data) {
+                Ok(msg) => {
+                    let session_id = &msg.input.session_id;
+                    let result = match msg.event {
+                        HookEvent::SessionStart => handle_session_start(storage, queue, &msg),
+                        HookEvent::Stop => handle_stop(storage, queue, &msg),
+                        HookEvent::SessionEnd => handle_session_end(storage, queue, &msg),
+                    };
+                    if let Err(e) = result {
+                        error!("Error replaying spooled {:?} for {}: {}", msg.event, session_id, e);
+                    } else {
+                        replayed += 1;
+                    }
+                    // Remove the spool file regardless (avoid infinite replay of bad messages)
+                    let _ = fs::remove_file(&path);
+                }
+                Err(e) => {
+                    warn!("Skipping malformed spool entry {}: {}", path.display(), e);
+                    let _ = fs::remove_file(&path);
+                }
+            },
+            Err(e) => {
+                warn!("Failed to read spool entry {}: {}", path.display(), e);
+            }
+        }
+    }
+
+    if replayed > 0 {
+        info!("Replayed {} spooled messages", replayed);
+    }
+}
+
+/// Scan active sessions and sync any lines that were missed while daemon was down.
+fn catch_up_active_sessions(storage: &LocalStorage, queue: &UploadQueue) {
+    let active = match storage.list_active_sessions() {
+        Ok(a) => a,
+        Err(e) => {
+            warn!("Failed to list active sessions for catch-up: {}", e);
+            return;
+        }
+    };
+
+    let tracker = CursorTracker::new(storage);
+    let mut caught_up = 0;
+
+    for meta in &active {
+        let session_id = &meta.session_id;
+        let last_line = match tracker.get_position(session_id) {
+            Ok(l) => l,
+            Err(_) => continue,
+        };
+
+        let (new_lines, total_lines) = match storage.read_transcript_lines(&meta.transcript_path, last_line) {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+
+        if new_lines.is_empty() {
+            continue;
+        }
+
+        if let Err(e) = storage.append_transcript(session_id, &new_lines) {
+            warn!("Catch-up: failed to append transcript for {}: {}", session_id, e);
+            continue;
+        }
+
+        if let Err(e) = queue.enqueue_append(session_id, last_line, total_lines) {
+            warn!("Catch-up: failed to enqueue append for {}: {}", session_id, e);
+            continue;
+        }
+
+        if let Err(e) = tracker.advance(session_id, total_lines) {
+            warn!("Catch-up: failed to advance cursor for {}: {}", session_id, e);
+            continue;
+        }
+
+        info!(
+            "Catch-up: synced {} missed lines for session {} (lines {}-{})",
+            new_lines.len(),
+            session_id,
+            last_line,
+            total_lines
+        );
+        caught_up += 1;
+    }
+
+    if caught_up > 0 {
+        info!("Caught up {} active sessions", caught_up);
+    }
+}
+
+/// Process a single hook event, logging any errors.
+fn handle_event(storage: &LocalStorage, queue: &UploadQueue, msg: &HookMessage) {
+    let session_id = &msg.input.session_id;
+
+    let result = match msg.event {
+        HookEvent::SessionStart => handle_session_start(storage, queue, msg),
+        HookEvent::Stop => handle_stop(storage, queue, msg),
+        HookEvent::SessionEnd => handle_session_end(storage, queue, msg),
+    };
+
+    if let Err(e) = result {
+        error!("Error handling {:?} for session {}: {}", msg.event, session_id, e);
+    }
 }
 
 fn handle_session_start(
@@ -197,7 +330,7 @@ fn handle_stop(
     storage.append_transcript(&input.session_id, &new_lines)?;
 
     // Queue upload for new lines
-    queue.enqueue_append(&input.session_id, last_line + 1, total_lines)?;
+    queue.enqueue_append(&input.session_id, last_line, total_lines)?;
 
     // Update cursor
     tracker.advance(&input.session_id, total_lines)?;
@@ -209,7 +342,7 @@ fn handle_stop(
         "Synced {} new lines for session {} (lines {}-{})",
         new_lines.len(),
         input.session_id,
-        last_line + 1,
+        last_line,
         total_lines
     );
 
@@ -233,7 +366,7 @@ fn handle_session_end(
 
     if !new_lines.is_empty() {
         storage.append_transcript(&input.session_id, &new_lines)?;
-        queue.enqueue_append(&input.session_id, last_line + 1, total_lines)?;
+        queue.enqueue_append(&input.session_id, last_line, total_lines)?;
         tracker.advance(&input.session_id, total_lines)?;
     }
 

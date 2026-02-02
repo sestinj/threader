@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -12,7 +13,7 @@ use crate::storage::queue::UploadQueue;
 use crate::sync::images::{line_has_images, ImageProcessor};
 
 const UPLOAD_INTERVAL_SECS: u64 = 10;
-const MAX_RETRY_ATTEMPTS: u32 = 10;
+const MAX_RETRY_ATTEMPTS: u32 = 360;
 
 /// Convex HTTP endpoint base URL.
 /// Can be overridden via the THREADER_CONVEX_SITE_URL env var.
@@ -72,10 +73,10 @@ impl BackgroundUploader {
         for (path, mut entry) in entries {
             if entry.attempts >= MAX_RETRY_ATTEMPTS {
                 warn!(
-                    "Dropping queue entry for session {} after {} attempts",
+                    "Moving queue entry for session {} to dead-letter after {} attempts",
                     entry.session_id, entry.attempts
                 );
-                self.queue.remove(&path)?;
+                self.move_to_failed(&path)?;
                 continue;
             }
 
@@ -100,6 +101,25 @@ impl BackgroundUploader {
             }
         }
 
+        Ok(())
+    }
+
+    /// Move a failed queue entry to the dead-letter directory instead of deleting it.
+    fn move_to_failed(&self, path: &PathBuf) -> Result<()> {
+        let failed_dir = path
+            .parent()
+            .context("Queue entry has no parent dir")?
+            .parent()
+            .context("Queue pending dir has no parent")?
+            .join("failed");
+        fs::create_dir_all(&failed_dir)?;
+
+        let filename = path
+            .file_name()
+            .context("Queue entry has no filename")?;
+        let dest = failed_dir.join(filename);
+        fs::rename(path, &dest)?;
+        debug!("Moved failed entry to {}", dest.display());
         Ok(())
     }
 

@@ -1,3 +1,4 @@
+use std::fs;
 use std::io::{self, Read};
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
@@ -36,12 +37,36 @@ pub fn handle_hook(event: HookEvent) -> Result<()> {
             debug!("Sent hook event to daemon");
         }
         Err(e) => {
-            // Daemon might not be running - that's okay.
-            // The data isn't lost since the transcript file persists.
-            warn!("Could not reach daemon ({}), event not sent", e);
+            // Daemon not reachable — spool the message for later replay
+            warn!("Could not reach daemon ({}), spooling event", e);
+            if let Err(spool_err) = spool_message(&msg) {
+                warn!("Failed to spool message: {}", spool_err);
+            }
         }
     }
 
+    Ok(())
+}
+
+/// Write a HookMessage to the spool directory for later replay by the daemon.
+fn spool_message(msg: &HookMessage) -> Result<()> {
+    let base = LocalStorage::default_base_dir()?;
+    let spool_dir = base.join("spool");
+    fs::create_dir_all(&spool_dir)?;
+
+    let filename = format!(
+        "{}_{}.json",
+        msg.timestamp.timestamp_millis(),
+        msg.input.session_id
+    );
+    let path = spool_dir.join(&filename);
+    let tmp = path.with_extension("tmp");
+
+    let json = serde_json::to_string_pretty(msg)?;
+    fs::write(&tmp, &json)?;
+    fs::rename(&tmp, &path)?;
+
+    debug!("Spooled event to {}", path.display());
     Ok(())
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "threader"
-version = "0.0.6"
+version = "0.0.7"
 edition = "2021"
 description = "Daemon that syncs Claude Code sessions to the cloud"
 license = "Apache-2.0"

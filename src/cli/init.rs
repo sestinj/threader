@@ -90,28 +90,28 @@ pub fn install_hooks() -> Result<()> {
             .as_array_mut()
             .context(format!("{} hooks is not an array", event))?;
 
-        // Check if we already have this hook installed
-        let already_installed = event_array.iter().any(|matcher| {
-            matcher
+        // Remove any existing threader hook entries (handles duplicates and stale paths)
+        event_array.retain(|matcher| {
+            let is_threader = matcher
                 .get("hooks")
                 .and_then(|h| h.as_array())
                 .map(|hooks| {
                     hooks.iter().any(|h| {
                         h.get("command")
                             .and_then(|c| c.as_str())
-                            .map(|c| c.starts_with("threader hook"))
+                            .map(|c| c.contains("threader hook"))
                             .unwrap_or(false)
                     })
                 })
-                .unwrap_or(false)
+                .unwrap_or(false);
+            !is_threader
         });
 
-        if !already_installed {
-            event_array.push(serde_json::json!({
-                "hooks": [hook_entry]
-            }));
-            info!("Installed {} hook", event);
-        }
+        // Add fresh hook entry with the current binary path
+        event_array.push(serde_json::json!({
+            "hooks": [hook_entry]
+        }));
+        info!("Installed {} hook", event);
     }
 
     // Write back atomically

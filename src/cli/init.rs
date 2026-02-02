@@ -1,16 +1,14 @@
-use std::fs;
+use anyhow::Result;
+use tracing::warn;
 
-use anyhow::{Context, Result};
-use tracing::info;
-
+use crate::agents;
 use crate::storage::local::LocalStorage;
 
-/// Initialize Threader: create directories and install Claude Code hooks.
+/// Initialize Threader: create directories and install hooks for all detected agents.
 pub fn run_init() -> Result<()> {
     init_core()?;
 
-    println!("Threader initialized successfully.");
-    println!("Run `threader daemon` to start the daemon.");
+    println!("\nRun `threader start` to start the daemon.");
     Ok(())
 }
 
@@ -33,93 +31,45 @@ pub fn init_core() -> Result<()> {
     Ok(())
 }
 
-/// Install hooks into ~/.claude/settings.json.
+/// Detect all installed coding agents and install hooks for each.
 pub fn install_hooks() -> Result<()> {
-    let home = dirs::home_dir().context("Could not determine home directory")?;
-    let settings_path = home.join(".claude").join("settings.json");
+    let threader_cmd = agents::resolve_threader_cmd()?;
+    let all = agents::all_agents();
 
-    // Resolve the absolute path to the threader binary so hooks work in
-    // non-interactive shells (e.g. /bin/sh) that don't load the user's PATH.
-    let threader_bin = home.join(".local").join("bin").join("threader");
-    let threader_cmd = if threader_bin.exists() {
-        threader_bin
-            .to_str()
-            .context("Non-UTF8 path to threader binary")?
-            .to_string()
-    } else {
-        // Fall back to bare command name if not installed in the default location
-        "threader".to_string()
-    };
+    println!("Detecting coding agents...");
 
-    // Read existing settings or start fresh
-    let mut settings: serde_json::Value = if settings_path.exists() {
-        let data = fs::read_to_string(&settings_path)?;
-        serde_json::from_str(&data).unwrap_or_else(|_| serde_json::json!({}))
-    } else {
-        fs::create_dir_all(settings_path.parent().unwrap())?;
-        serde_json::json!({})
-    };
+    let mut connected = 0;
 
-    let hooks = settings
-        .as_object_mut()
-        .context("Settings is not an object")?
-        .entry("hooks")
-        .or_insert_with(|| serde_json::json!({}));
-
-    let hooks_obj = hooks
-        .as_object_mut()
-        .context("hooks is not an object")?;
-
-    // Install each hook, preserving existing hooks
-    for (event, subcommand) in [
-        ("SessionStart", "hook session-start"),
-        ("Stop", "hook stop"),
-        ("SessionEnd", "hook session-end"),
-    ] {
-        let command = format!("{} {}", threader_cmd, subcommand);
-        let hook_entry = serde_json::json!({
-            "type": "command",
-            "command": command
-        });
-
-        let event_hooks = hooks_obj
-            .entry(event)
-            .or_insert_with(|| serde_json::json!([]));
-
-        let event_array = event_hooks
-            .as_array_mut()
-            .context(format!("{} hooks is not an array", event))?;
-
-        // Remove any existing threader hook entries (handles duplicates and stale paths)
-        event_array.retain(|matcher| {
-            let is_threader = matcher
-                .get("hooks")
-                .and_then(|h| h.as_array())
-                .map(|hooks| {
-                    hooks.iter().any(|h| {
-                        h.get("command")
-                            .and_then(|c| c.as_str())
-                            .map(|c| c.contains("threader hook"))
-                            .unwrap_or(false)
-                    })
-                })
-                .unwrap_or(false);
-            !is_threader
-        });
-
-        // Add fresh hook entry with the current binary path
-        event_array.push(serde_json::json!({
-            "hooks": [hook_entry]
-        }));
-        info!("Installed {} hook", event);
+    for agent in &all {
+        if agent.detect() {
+            match agent.install(&threader_cmd) {
+                Ok(()) => {
+                    println!("  \u{2713} {} \u{2014} hooks installed", agent.display_name());
+                    connected += 1;
+                }
+                Err(e) => {
+                    warn!("Failed to install hooks for {}: {}", agent.name(), e);
+                    println!(
+                        "  \u{2717} {} \u{2014} hook installation failed: {}",
+                        agent.display_name(),
+                        e
+                    );
+                }
+            }
+        } else {
+            println!("  \u{00b7} {} \u{2014} not detected", agent.display_name());
+        }
     }
 
-    // Write back atomically
-    let tmp = settings_path.with_extension("tmp");
-    let json = serde_json::to_string_pretty(&settings)?;
-    fs::write(&tmp, &json)?;
-    fs::rename(&tmp, &settings_path)?;
+    if connected > 0 {
+        println!(
+            "\nThreader is ready. {} agent{} connected.",
+            connected,
+            if connected == 1 { "" } else { "s" }
+        );
+    } else {
+        println!("\nNo coding agents detected. Install a supported agent and run `threader init` again.");
+    }
 
-    println!("Claude Code hooks installed.");
     Ok(())
 }

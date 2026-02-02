@@ -10,24 +10,28 @@ use tracing::{debug, warn};
 use crate::hooks::{HookEvent, HookInput, HookMessage};
 use crate::storage::local::LocalStorage;
 
-/// Handle a hook event from Claude Code.
+/// Handle a hook event from a coding agent.
 ///
-/// Reads JSON input from stdin, wraps it with event type,
+/// Reads JSON input from stdin, wraps it with event type and agent name,
 /// and sends to the daemon via Unix socket.
-pub fn handle_hook(event: HookEvent) -> Result<()> {
+pub fn handle_hook(event: HookEvent, agent: &str) -> Result<()> {
     // Read hook input from stdin
     let mut input_str = String::new();
     io::stdin()
         .read_to_string(&mut input_str)
         .context("Failed to read hook input from stdin")?;
 
-    let input: HookInput =
-        serde_json::from_str(&input_str).context("Failed to parse hook input JSON")?;
+    // Use the agent's parser if available, otherwise fall back to default
+    let input: HookInput = match crate::agents::get_agent(agent) {
+        Some(a) => a.parse_hook_input(&input_str)?,
+        None => serde_json::from_str(&input_str).context("Failed to parse hook input JSON")?,
+    };
 
     let msg = HookMessage {
         event,
         input,
         timestamp: Utc::now(),
+        agent: Some(agent.to_string()),
     };
 
     // Try to send to daemon via Unix socket

@@ -257,6 +257,7 @@ fn handle_session_start(
         transcript_path: input.transcript_path.clone(),
         cwd: input.cwd.clone(),
         model: input.model.clone(),
+        agent: msg.agent.clone(),
         started_at: msg.timestamp,
         ended_at: None,
         end_reason: None,

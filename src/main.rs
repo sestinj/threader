@@ -1,3 +1,4 @@
+mod agents;
 mod auth;
 mod cli;
 mod daemon;

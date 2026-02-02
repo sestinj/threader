@@ -30,8 +30,10 @@ enum Command {
     /// Run the Threader daemon in the foreground
     Daemon,
 
-    /// Handle a Claude Code hook event
+    /// Handle a coding agent hook event (e.g. threader hook claude-code session-start)
     Hook {
+        /// The agent name (e.g. claude-code, cursor)
+        agent: String,
         #[command(subcommand)]
         event: HookCommand,
     },
@@ -98,13 +100,13 @@ impl Cli {
                 let _ = std::fs::remove_file(&pid_path);
                 result
             }
-            Command::Hook { event } => {
+            Command::Hook { agent, event } => {
                 let hook_event = match event {
                     HookCommand::SessionStart => HookEvent::SessionStart,
                     HookCommand::Stop => HookEvent::Stop,
                     HookCommand::SessionEnd => HookEvent::SessionEnd,
                 };
-                hook::handle_hook(hook_event)
+                hook::handle_hook(hook_event, &agent)
             }
             Command::Init => init::run_init(),
             Command::Login => {

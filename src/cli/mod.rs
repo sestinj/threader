@@ -159,6 +159,10 @@ fn start_daemon(base_dir: &std::path::Path) -> Result<()> {
         return Ok(());
     }
 
+    // Ensure directories and hooks are set up
+    storage.init()?;
+    init::install_hooks()?;
+
     // Find our own binary
     let exe = std::env::current_exe().context("could not determine threader binary path")?;
 

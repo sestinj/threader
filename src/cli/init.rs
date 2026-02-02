@@ -19,7 +19,7 @@ pub fn run_init() -> Result<()> {
 }
 
 /// Install hooks into ~/.claude/settings.json.
-fn install_hooks() -> Result<()> {
+pub fn install_hooks() -> Result<()> {
     let home = dirs::home_dir().context("Could not determine home directory")?;
     let settings_path = home.join(".claude").join("settings.json");
 

@@ -127,7 +127,16 @@ impl ImageProcessor {
                 }
                 Err(e) => {
                     warn!("Failed to upload image: {}", e);
-                    // Leave block as-is
+                    // Strip large image data to prevent oversized documents.
+                    // Replace with a placeholder so the transcript remains parseable.
+                    *block = serde_json::json!({
+                        "type": "image",
+                        "source": {
+                            "type": "url",
+                            "url": "about:blank",
+                        }
+                    });
+                    modified = true;
                 }
             }
         }

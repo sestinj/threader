@@ -1,6 +1,6 @@
 [package]
 name = "threader"
-version = "0.0.14"
+version = "0.0.15"
 edition = "2021"
 description = "Daemon that syncs Claude Code sessions to the cloud"
 license = "Apache-2.0"
@@ -30,6 +30,7 @@ tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 url = "2"
+image = "0.25"
 sentry = { version = "0.35", default-features = false, features = ["backtrace", "contexts", "tracing", "reqwest", "rustls", "panic"] }
 uuid = { version = "1", features = ["v4"] }
 

@@ -103,6 +103,9 @@ impl ImageProcessor {
                 _ => continue,
             };
 
+            // Compress/resize if needed to stay under backend size limit
+            let (image_bytes, content_type) = compress_image_if_needed(&image_bytes, &content_type);
+
             // Compute SHA-256 hash for content-addressing
             let mut hasher = Sha256::new();
             hasher.update(&image_bytes);
@@ -126,17 +129,8 @@ impl ImageProcessor {
                     debug!("Rewrote image block with URL: {}", url);
                 }
                 Err(e) => {
-                    warn!("Failed to upload image: {}", e);
-                    // Strip large image data to prevent oversized documents.
-                    // Replace with a placeholder so the transcript remains parseable.
-                    *block = serde_json::json!({
-                        "type": "image",
-                        "source": {
-                            "type": "url",
-                            "url": "about:blank",
-                        }
-                    });
-                    modified = true;
+                    warn!("Failed to upload image, leaving original block: {}", e);
+                    continue;
                 }
             }
         }
@@ -216,6 +210,86 @@ pub fn line_has_images(line: &str) -> bool {
         }
     }
     false
+}
+
+const SIZE_THRESHOLD: usize = 5 * 1024 * 1024; // 5MB — skip compression if already under this
+const SIZE_LIMIT: usize = 10 * 1024 * 1024; // 10MB — backend upload limit
+
+/// Compress/resize an image if it exceeds the size threshold.
+/// Returns (possibly compressed bytes, content type).
+fn compress_image_if_needed(image_bytes: &[u8], content_type: &str) -> (Vec<u8>, String) {
+    if image_bytes.len() <= SIZE_THRESHOLD {
+        return (image_bytes.to_vec(), content_type.to_string());
+    }
+
+    let img = match image::load_from_memory(image_bytes) {
+        Ok(img) => img,
+        Err(e) => {
+            debug!("Cannot decode image for compression ({}), using original", e);
+            return (image_bytes.to_vec(), content_type.to_string());
+        }
+    };
+
+    // First attempt: re-encode as JPEG at quality 85 (no resize)
+    if let Some(buf) = encode_jpeg(&img, 85) {
+        if buf.len() <= SIZE_LIMIT {
+            debug!(
+                "Compressed image from {} to {} bytes (JPEG q85)",
+                image_bytes.len(),
+                buf.len()
+            );
+            return (buf, "image/jpeg".to_string());
+        }
+    }
+
+    // Progressive downscale at quality 80
+    for &scale in &[75u32, 50, 25] {
+        let new_w = (img.width() * scale / 100).max(1);
+        let new_h = (img.height() * scale / 100).max(1);
+        let resized = img.resize_exact(new_w, new_h, image::imageops::FilterType::Lanczos3);
+
+        if let Some(buf) = encode_jpeg(&resized, 80) {
+            if buf.len() <= SIZE_LIMIT {
+                debug!(
+                    "Compressed image from {} to {} bytes ({}% scale, JPEG q80)",
+                    image_bytes.len(),
+                    buf.len(),
+                    scale
+                );
+                return (buf, "image/jpeg".to_string());
+            }
+        }
+    }
+
+    // If nothing worked, return the best effort (25% scale)
+    let new_w = (img.width() / 4).max(1);
+    let new_h = (img.height() / 4).max(1);
+    let resized = img.resize_exact(new_w, new_h, image::imageops::FilterType::Lanczos3);
+    if let Some(buf) = encode_jpeg(&resized, 60) {
+        debug!(
+            "Compressed image from {} to {} bytes (25% scale, JPEG q60, last resort)",
+            image_bytes.len(),
+            buf.len()
+        );
+        return (buf, "image/jpeg".to_string());
+    }
+
+    // Absolute fallback — return original unchanged
+    warn!("All compression attempts failed, using original image");
+    (image_bytes.to_vec(), content_type.to_string())
+}
+
+fn encode_jpeg(img: &image::DynamicImage, quality: u8) -> Option<Vec<u8>> {
+    let rgb = img.to_rgb8();
+    let mut buf = std::io::Cursor::new(Vec::new());
+    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, quality);
+    match rgb.write_with_encoder(encoder) {
+        Ok(()) => Some(buf.into_inner()),
+        Err(e) => {
+            debug!("JPEG encoding failed: {}", e);
+            None
+        }
+    }
 }
 
 fn mime_from_path(path: &str) -> String {

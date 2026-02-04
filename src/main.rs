@@ -3,6 +3,7 @@ mod auth;
 mod cli;
 mod daemon;
 mod hooks;
+mod process;
 mod storage;
 mod sync;
 

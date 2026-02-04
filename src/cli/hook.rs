@@ -27,6 +27,22 @@ pub fn handle_hook(event: HookEvent, agent: &str) -> Result<()> {
         None => serde_json::from_str(&input_str).context("Failed to parse hook input JSON")?,
     };
 
+    // Write/clean PID-to-session mapping for `threader share`
+    if matches!(event, HookEvent::SessionStart) {
+        if let Some(claude_pid) = crate::process::find_claude_ancestor_pid() {
+            let base = LocalStorage::default_base_dir()?;
+            let pid_dir = base.join("pid-sessions");
+            fs::create_dir_all(&pid_dir)?;
+            fs::write(pid_dir.join(claude_pid.to_string()), &input.session_id)?;
+        }
+    }
+    if matches!(event, HookEvent::SessionEnd) {
+        if let Some(claude_pid) = crate::process::find_claude_ancestor_pid() {
+            let base = LocalStorage::default_base_dir()?;
+            let _ = fs::remove_file(base.join("pid-sessions").join(claude_pid.to_string()));
+        }
+    }
+
     let msg = HookMessage {
         event,
         input,

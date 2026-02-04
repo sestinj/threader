@@ -3,6 +3,7 @@ pub mod hook;
 pub mod hydrate;
 pub mod init;
 pub mod resume;
+pub mod share;
 pub mod terminal;
 
 use anyhow::{Context, Result};
@@ -64,6 +65,9 @@ enum Command {
         /// The session ID to resume
         session_id: String,
     },
+
+    /// Share the current session and print the URL
+    Share,
 
     /// Check for and install updates
     Update,
@@ -134,6 +138,7 @@ impl Cli {
             Command::Whoami => show_whoami(),
             Command::HandleUrl { url } => resume::handle_url(&url).await,
             Command::Resume { session_id } => resume::resume_session(&session_id).await,
+            Command::Share => share::run().await,
             Command::Update => crate::sync::updater::run_manual_update().await,
         }
     }

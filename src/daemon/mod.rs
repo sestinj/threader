@@ -15,6 +15,7 @@ use crate::storage::queue::UploadQueue;
 use crate::sync::cost;
 use crate::sync::cursor::CursorTracker;
 use crate::sync::updater::AutoUpdater;
+use crate::sync::poller::TranscriptPoller;
 use crate::sync::uploader::BackgroundUploader;
 
 use self::socket::SocketServer;
@@ -54,6 +55,14 @@ pub async fn run(base_dir: PathBuf) -> Result<()> {
     tokio::spawn(async move {
         if let Err(e) = uploader.run().await {
             error!("Background uploader error: {}", e);
+        }
+    });
+
+    // Spawn transcript poller for faster sync of active sessions
+    let poller = TranscriptPoller::new(base_dir.clone());
+    tokio::spawn(async move {
+        if let Err(e) = poller.run().await {
+            error!("Transcript poller error: {}", e);
         }
     });
 

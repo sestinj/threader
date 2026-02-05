@@ -72,10 +72,7 @@ fi
 "$INSTALL_DIR/threader" login
 
 echo ""
-echo "You're all set! Threader is now running in the background."
+echo "You're all set! Threader is running in the background."
 echo ""
-echo "Your Claude Code sessions will automatically sync to the cloud."
-echo "View and share them at: https://threader.sh"
-echo ""
-echo "Run 'threader share' to share your current session."
+echo "Start a Claude Code session, then watch it appear at https://threader.sh"
 echo ""

@@ -70,3 +70,15 @@ fi
 # Start daemon (also runs init + installs hooks) and log in
 "$INSTALL_DIR/threader" start
 "$INSTALL_DIR/threader" login
+
+echo ""
+echo "You're all set! Threader is now running in the background."
+echo ""
+echo "Your Claude Code sessions will automatically sync to the cloud."
+echo "View and share them at: https://threader.sh"
+echo ""
+echo "Useful commands:"
+echo "  threader status  - Check sync status"
+echo "  threader share   - Share your current session"
+echo "  threader stop    - Stop the daemon"
+echo ""

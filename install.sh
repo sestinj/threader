@@ -68,7 +68,5 @@ else
 fi
 
 # Start daemon (also runs init + installs hooks) and log in
-if [ -t 0 ]; then
-  "$INSTALL_DIR/threader" start
-  "$INSTALL_DIR/threader" login
-fi
+"$INSTALL_DIR/threader" start
+"$INSTALL_DIR/threader" login

@@ -22,10 +22,17 @@ pub fn handle_hook(event: HookEvent, agent: &str) -> Result<()> {
         .context("Failed to read hook input from stdin")?;
 
     // Use the agent's parser if available, otherwise fall back to default
-    let input: HookInput = match crate::agents::get_agent(agent) {
+    let mut input: HookInput = match crate::agents::get_agent(agent) {
         Some(a) => a.parse_hook_input(&input_str)?,
         None => serde_json::from_str(&input_str).context("Failed to parse hook input JSON")?,
     };
+
+    // Resolve repo from git remote if not already set
+    if input.repo.is_none() {
+        if let Some(ref cwd) = input.cwd {
+            input.repo = crate::git::resolve_repo(cwd);
+        }
+    }
 
     // Write/clean PID-to-session mapping for `threader share`
     if matches!(event, HookEvent::SessionStart) {

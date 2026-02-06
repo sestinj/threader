@@ -239,6 +239,7 @@ mod tests {
             transcript_path: PathBuf::from("/tmp/transcript.jsonl"),
             cwd: Some("/home/user/project".to_string()),
             model: Some("claude-sonnet-4-20250514".to_string()),
+            repo: None,
             agent: None,
             started_at: Utc::now(),
             ended_at: None,

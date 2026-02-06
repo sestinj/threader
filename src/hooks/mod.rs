@@ -20,6 +20,9 @@ pub struct HookInput {
     pub cwd: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
+    /// Resolved `owner/repo` from git remote origin.
+    #[serde(default)]
+    pub repo: Option<String>,
     /// For SessionEnd: reason the session ended.
     #[serde(default)]
     pub reason: Option<String>,
@@ -46,6 +49,9 @@ pub struct SessionMeta {
     pub cwd: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
+    /// Resolved `owner/repo` from git remote origin.
+    #[serde(default)]
+    pub repo: Option<String>,
     /// Which agent produced this session (e.g. "claude-code", "cursor").
     /// None for legacy sessions (assumed claude-code).
     #[serde(default)]

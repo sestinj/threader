@@ -2,6 +2,7 @@ mod agents;
 mod auth;
 mod cli;
 mod daemon;
+mod git;
 mod hooks;
 mod process;
 mod storage;

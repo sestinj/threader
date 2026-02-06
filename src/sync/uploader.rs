@@ -157,6 +157,9 @@ impl BackgroundUploader {
         if let Some(ref agent) = meta.agent {
             body["agent"] = serde_json::json!(agent);
         }
+        if let Some(ref repo) = meta.repo {
+            body["repo"] = serde_json::json!(repo);
+        }
 
         let url = format!("{}/api/sessions", convex_site_url());
         info!("Creating session {} at {}", entry.session_id, url);

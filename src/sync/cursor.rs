@@ -53,3 +53,81 @@ impl<'a> CursorTracker<'a> {
         self.storage.update_sync_state(session_id, &state)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::hooks::SessionMeta;
+    use crate::storage::local::LocalStorage;
+    use chrono::Utc;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    fn setup() -> (LocalStorage, TempDir) {
+        let tmp = TempDir::new().unwrap();
+        let storage = LocalStorage::new(tmp.path().to_path_buf());
+        storage.init().unwrap();
+        (storage, tmp)
+    }
+
+    fn create_test_session(storage: &LocalStorage, id: &str) {
+        let meta = SessionMeta {
+            session_id: id.to_string(),
+            transcript_path: PathBuf::from("/tmp/test.jsonl"),
+            cwd: None,
+            model: None,
+            repo: None,
+            agent: None,
+            started_at: Utc::now(),
+            ended_at: None,
+            end_reason: None,
+            tags: vec![],
+            total_cost_usd: None,
+            total_input_tokens: None,
+            total_output_tokens: None,
+            total_cache_read_tokens: None,
+            total_cache_creation_tokens: None,
+        };
+        storage.create_session(&meta).unwrap();
+    }
+
+    #[test]
+    fn advance_and_get_position_round_trip() {
+        let (storage, _tmp) = setup();
+        create_test_session(&storage, "test-session");
+
+        let tracker = CursorTracker::new(&storage);
+
+        // Initial position is 0
+        assert_eq!(tracker.get_position("test-session").unwrap(), 0);
+
+        // Advance to 42
+        tracker.advance("test-session", 42).unwrap();
+        assert_eq!(tracker.get_position("test-session").unwrap(), 42);
+
+        // Advance further
+        tracker.advance("test-session", 100).unwrap();
+        assert_eq!(tracker.get_position("test-session").unwrap(), 100);
+    }
+
+    #[test]
+    fn advance_updates_sync_state_fields() {
+        let (storage, _tmp) = setup();
+        create_test_session(&storage, "test-session");
+
+        let tracker = CursorTracker::new(&storage);
+
+        // Mark as failed first to set non-default values
+        tracker.mark_failed("test-session").unwrap();
+        let state = storage.read_sync_state("test-session").unwrap();
+        assert_eq!(state.upload_status, UploadStatus::Failed);
+        assert_eq!(state.retry_count, 1);
+
+        // Advance should reset status and retry_count
+        tracker.advance("test-session", 10).unwrap();
+        let state = storage.read_sync_state("test-session").unwrap();
+        assert_eq!(state.last_synced_line, 10);
+        assert_eq!(state.upload_status, UploadStatus::Synced);
+        assert_eq!(state.retry_count, 0);
+    }
+}

@@ -27,3 +27,4 @@ Threader is a daemon that runs locally and syncs Claude Code sessions to the clo
 
 - [Technical Design](docs/DESIGN.md) - Client architecture, onboarding flows, backend design
 - [Product Vision](docs/VISION.md) - Network effects, long-term product direction
+- [Sync Design](docs/SYNC.md) - Transcript sync correctness principles and architecture

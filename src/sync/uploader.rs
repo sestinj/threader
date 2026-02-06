@@ -183,10 +183,12 @@ impl BackgroundUploader {
     }
 
     async fn upload_append(&self, entry: &QueueEntry, token: &str) -> Result<()> {
-        // Read the lines from local transcript
-        let transcript_path = self.storage.transcript_path(&entry.session_id);
-        let content = std::fs::read_to_string(&transcript_path)
-            .with_context(|| format!("Failed to read transcript for {}", entry.session_id))?;
+        // Read from the source transcript (Claude Code's file), not the local copy.
+        // The local copy can diverge due to concurrent poller + hook appends.
+        let meta = self.storage.read_meta(&entry.session_id)?;
+        let transcript_path = &meta.transcript_path;
+        let content = std::fs::read_to_string(transcript_path)
+            .with_context(|| format!("Failed to read source transcript for {}", entry.session_id))?;
 
         let all_lines: Vec<&str> = content.lines().collect();
 
@@ -217,8 +219,6 @@ impl BackgroundUploader {
 
         let lines_str = processed_lines.join("\n");
         let line_count = processed_lines.len();
-
-        let meta = self.storage.read_meta(&entry.session_id)?;
         let mut body = serde_json::json!({
             "lines": lines_str,
             "line_count": line_count,

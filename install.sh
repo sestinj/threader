@@ -72,7 +72,6 @@ fi
 "$INSTALL_DIR/threader" login
 
 echo ""
-echo "You're all set! Threader is running in the background."
-echo ""
-echo "Start a Claude Code session, then watch it appear at https://threader.sh"
+echo "\033[47;30m You're all set! Threader is running in the background.                        \033[0m"
+echo "\033[47;30m Start a Claude Code session, then watch it appear at https://threader.sh      \033[0m"
 echo ""

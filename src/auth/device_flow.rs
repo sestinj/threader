@@ -39,7 +39,7 @@ pub async fn login() -> Result<Credentials, AuthError> {
     // Step 1: Initiate device flow
     let resp = client
         .post("https://api.workos.com/user_management/authorize/device")
-        .form(&[("client_id", CLIENT_ID)])
+        .form(&[("client_id", CLIENT_ID), ("screen_hint", "sign-up")])
         .send()
         .await?;
 

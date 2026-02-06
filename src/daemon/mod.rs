@@ -309,19 +309,23 @@ fn ensure_session(storage: &LocalStorage, queue: &UploadQueue, msg: &HookMessage
     handle_session_start(storage, queue, msg)
 }
 
-/// Read cost data from Claude Code's store DB and update the session meta.
+/// Read token data from the source transcript JSONL and update the session meta.
 fn refresh_cost(storage: &LocalStorage, session_id: &str) {
-    match cost::read_session_cost(session_id) {
+    let meta = match storage.read_meta(session_id) {
+        Ok(m) => m,
+        Err(_) => return,
+    };
+
+    match cost::read_session_cost(&meta.transcript_path) {
         Ok(Some(c)) => {
-            if let Ok(mut meta) = storage.read_meta(session_id) {
-                meta.total_cost_usd = Some(c.total_cost_usd);
-                meta.total_input_tokens = Some(c.total_input_tokens);
-                meta.total_output_tokens = Some(c.total_output_tokens);
-                meta.total_cache_read_tokens = Some(c.total_cache_read_tokens);
-                meta.total_cache_creation_tokens = Some(c.total_cache_creation_tokens);
-                if let Err(e) = storage.update_meta(&meta) {
-                    warn!("Failed to update cost meta for {}: {}", session_id, e);
-                }
+            let mut meta = meta;
+            meta.total_cost_usd = Some(c.total_cost_usd);
+            meta.total_input_tokens = Some(c.total_input_tokens);
+            meta.total_output_tokens = Some(c.total_output_tokens);
+            meta.total_cache_read_tokens = Some(c.total_cache_read_tokens);
+            meta.total_cache_creation_tokens = Some(c.total_cache_creation_tokens);
+            if let Err(e) = storage.update_meta(&meta) {
+                warn!("Failed to update cost meta for {}: {}", session_id, e);
             }
         }
         Ok(None) => {}

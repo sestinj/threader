@@ -7,6 +7,7 @@ use tracing::{info, warn};
 
 use crate::storage::local::LocalStorage;
 use crate::storage::queue::UploadQueue;
+use crate::sync::cost;
 use crate::sync::cursor::CursorTracker;
 
 const POLL_INTERVAL_SECS: u64 = 5;
@@ -90,6 +91,30 @@ impl TranscriptPoller {
                 last_line,
                 total_lines
             );
+
+            // Update token counts from the source transcript
+            self.refresh_cost(meta);
+        }
+    }
+
+    fn refresh_cost(&self, meta: &crate::hooks::SessionMeta) {
+        match cost::read_session_cost(&meta.transcript_path) {
+            Ok(Some(c)) => {
+                if let Ok(mut m) = self.storage.read_meta(&meta.session_id) {
+                    m.total_cost_usd = Some(c.total_cost_usd);
+                    m.total_input_tokens = Some(c.total_input_tokens);
+                    m.total_output_tokens = Some(c.total_output_tokens);
+                    m.total_cache_read_tokens = Some(c.total_cache_read_tokens);
+                    m.total_cache_creation_tokens = Some(c.total_cache_creation_tokens);
+                    if let Err(e) = self.storage.update_meta(&m) {
+                        warn!("Poller: failed to update cost meta for {}: {}", meta.session_id, e);
+                    }
+                }
+            }
+            Ok(None) => {}
+            Err(e) => {
+                warn!("Poller: failed to read cost for {}: {}", meta.session_id, e);
+            }
         }
     }
 }

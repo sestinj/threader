@@ -38,7 +38,7 @@ impl TranscriptPoller {
     }
 
     fn poll_active_sessions(&self) {
-        let active = match self.storage.list_active_sessions() {
+        let mut sessions = match self.storage.list_active_sessions() {
             Ok(a) => a,
             Err(e) => {
                 warn!("Poller: failed to list active sessions: {}", e);
@@ -46,13 +46,18 @@ impl TranscriptPoller {
             }
         };
 
-        if active.is_empty() {
+        // Also check recently-ended sessions to catch post-hook summary lines
+        if let Ok(recent) = self.storage.list_recently_ended_sessions(30) {
+            sessions.extend(recent);
+        }
+
+        if sessions.is_empty() {
             return;
         }
 
         let tracker = CursorTracker::new(&self.storage);
 
-        for meta in &active {
+        for meta in &sessions {
             let session_id = &meta.session_id;
             let last_line = match tracker.get_position(session_id) {
                 Ok(l) => l,

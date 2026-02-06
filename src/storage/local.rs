@@ -213,6 +213,23 @@ impl LocalStorage {
         Ok(active)
     }
 
+    /// List sessions that ended within the last `grace_secs` seconds.
+    /// Used to catch lines written after SessionEnd (e.g. summary lines).
+    pub fn list_recently_ended_sessions(&self, grace_secs: i64) -> Result<Vec<SessionMeta>> {
+        let cutoff = Utc::now() - chrono::Duration::seconds(grace_secs);
+        let mut recent = Vec::new();
+        for session_id in self.list_sessions()? {
+            if let Ok(meta) = self.read_meta(&session_id) {
+                if let Some(ended_at) = meta.ended_at {
+                    if ended_at > cutoff {
+                        recent.push(meta);
+                    }
+                }
+            }
+        }
+        Ok(recent)
+    }
+
     /// Path to the spool directory for messages saved when daemon was down.
     pub fn spool_dir(&self) -> PathBuf {
         self.base_dir.join("spool")

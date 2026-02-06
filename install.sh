@@ -72,6 +72,6 @@ fi
 "$INSTALL_DIR/threader" login
 
 echo ""
-printf '\033[47;30m You'\''re all set! Threader is running in the background.                        \033[0m\n'
-printf '\033[47;30m Start a Claude Code session, then watch it appear at https://threader.sh      \033[0m\n'
+printf '\n\033[47;30m You'\''re all set! Threader is running in the background.                        \033[0m\n'
+printf '\n\033[47;30m Start a Claude Code session, then watch it appear at https://threader.sh      \033[0m\n'
 echo ""

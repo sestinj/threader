@@ -1,4 +1,5 @@
 pub mod app_bundle;
+pub mod debug;
 pub mod hook;
 pub mod hydrate;
 pub mod init;
@@ -71,6 +72,12 @@ enum Command {
 
     /// Check for and install updates
     Update,
+
+    /// Debug transcript sync issues
+    Debug {
+        #[command(subcommand)]
+        command: debug::DebugCommand,
+    },
 }
 
 #[derive(Subcommand)]
@@ -140,6 +147,7 @@ impl Cli {
             Command::Resume { session_id } => resume::resume_session(&session_id).await,
             Command::Share => share::run().await,
             Command::Update => crate::sync::updater::run_manual_update().await,
+            Command::Debug { command } => debug::run(command).await,
         }
     }
 }

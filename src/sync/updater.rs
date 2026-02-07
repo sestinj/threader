@@ -374,7 +374,21 @@ pub async fn run_manual_update() -> Result<()> {
     crate::cli::init::init_core()?;
 
     println!("Updated to v{}!", release.version);
-    println!("Restart the daemon: threader stop && threader start");
+
+    // Restart the daemon if it's running
+    let exe = std::env::current_exe().context("could not determine binary path")?;
+    let exe_str = exe.to_string_lossy().to_string();
+    let status = std::process::Command::new(&exe_str)
+        .arg("stop")
+        .status();
+    if status.is_ok() {
+        println!("Restarting daemon...");
+        std::process::Command::new(&exe_str)
+            .arg("start")
+            .status()
+            .ok();
+    }
+
     Ok(())
 }
 

@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -20,6 +22,65 @@ const MAX_RETRY_ATTEMPTS: u32 = 360;
 fn convex_site_url() -> String {
     std::env::var("THREADER_CONVEX_SITE_URL")
         .unwrap_or_else(|_| "https://ceaseless-shepherd-756.convex.site".to_string())
+}
+
+/// Cache for session summaries to avoid re-reading sessions-index.json on every upload.
+/// Key: session_id, Value: cached summary (or None if not found/empty).
+static SESSION_SUMMARY_CACHE: Mutex<Option<HashMap<String, Option<String>>>> = Mutex::new(None);
+
+/// Maximum number of entries in the session summary cache.
+const MAX_SUMMARY_CACHE_SIZE: usize = 500;
+
+/// Read the session summary from Claude Code's sessions-index.json.
+///
+/// The file lives in the same directory as the transcript JSONL and contains
+/// an `entries` array with `sessionId` and `summary` fields.
+///
+/// Results are cached per-session to avoid repeated disk I/O during frequent
+/// append uploads. The cache is never cleared since summaries don't change.
+fn read_session_summary(transcript_path: &Path, session_id: &str) -> Option<String> {
+    // Check cache first
+    {
+        let guard = SESSION_SUMMARY_CACHE.lock().ok()?;
+        if let Some(cache) = guard.as_ref() {
+            if let Some(cached) = cache.get(session_id) {
+                return cached.clone();
+            }
+        }
+    }
+
+    // Read from disk
+    let summary = read_session_summary_uncached(transcript_path, session_id);
+
+    // Cache the result (even if None, to avoid repeated lookups)
+    if let Ok(mut guard) = SESSION_SUMMARY_CACHE.lock() {
+        let cache = guard.get_or_insert_with(HashMap::new);
+        // Clear cache if it gets too large (simple eviction strategy)
+        if cache.len() >= MAX_SUMMARY_CACHE_SIZE {
+            cache.clear();
+        }
+        cache.insert(session_id.to_string(), summary.clone());
+    }
+
+    summary
+}
+
+/// Read session summary without caching.
+fn read_session_summary_uncached(transcript_path: &Path, session_id: &str) -> Option<String> {
+    let project_dir = transcript_path.parent()?;
+    let index_path = project_dir.join("sessions-index.json");
+    let content = fs::read_to_string(&index_path).ok()?;
+    let parsed: serde_json::Value = serde_json::from_str(&content).ok()?;
+    let entries = parsed.get("entries")?.as_array()?;
+    for entry in entries {
+        if entry.get("sessionId")?.as_str()? == session_id {
+            let summary = entry.get("summary")?.as_str()?;
+            if !summary.is_empty() {
+                return Some(summary.to_string());
+            }
+        }
+    }
+    None
 }
 
 /// Background worker that processes the upload queue.
@@ -239,6 +300,9 @@ impl BackgroundUploader {
         if let Some(tokens) = meta.total_cache_creation_tokens {
             body["total_cache_creation_tokens"] = serde_json::json!(tokens);
         }
+        if let Some(title) = read_session_summary(transcript_path, &entry.session_id) {
+            body["title"] = serde_json::json!(title);
+        }
 
         let resp = self
             .client
@@ -288,6 +352,9 @@ impl BackgroundUploader {
         }
         if let Some(tokens) = meta.total_cache_creation_tokens {
             body["total_cache_creation_tokens"] = serde_json::json!(tokens);
+        }
+        if let Some(title) = read_session_summary(&meta.transcript_path, &entry.session_id) {
+            body["title"] = serde_json::json!(title);
         }
 
         let resp = self

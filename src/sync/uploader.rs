@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -20,6 +20,27 @@ const MAX_RETRY_ATTEMPTS: u32 = 360;
 fn convex_site_url() -> String {
     std::env::var("THREADER_CONVEX_SITE_URL")
         .unwrap_or_else(|_| "https://ceaseless-shepherd-756.convex.site".to_string())
+}
+
+/// Read the session summary from Claude Code's sessions-index.json.
+///
+/// The file lives in the same directory as the transcript JSONL and contains
+/// an `entries` array with `sessionId` and `summary` fields.
+fn read_session_summary(transcript_path: &Path, session_id: &str) -> Option<String> {
+    let project_dir = transcript_path.parent()?;
+    let index_path = project_dir.join("sessions-index.json");
+    let content = fs::read_to_string(&index_path).ok()?;
+    let parsed: serde_json::Value = serde_json::from_str(&content).ok()?;
+    let entries = parsed.get("entries")?.as_array()?;
+    for entry in entries {
+        if entry.get("sessionId")?.as_str()? == session_id {
+            let summary = entry.get("summary")?.as_str()?;
+            if !summary.is_empty() {
+                return Some(summary.to_string());
+            }
+        }
+    }
+    None
 }
 
 /// Background worker that processes the upload queue.
@@ -239,6 +260,9 @@ impl BackgroundUploader {
         if let Some(tokens) = meta.total_cache_creation_tokens {
             body["total_cache_creation_tokens"] = serde_json::json!(tokens);
         }
+        if let Some(title) = read_session_summary(transcript_path, &entry.session_id) {
+            body["title"] = serde_json::json!(title);
+        }
 
         let resp = self
             .client
@@ -288,6 +312,9 @@ impl BackgroundUploader {
         }
         if let Some(tokens) = meta.total_cache_creation_tokens {
             body["total_cache_creation_tokens"] = serde_json::json!(tokens);
+        }
+        if let Some(title) = read_session_summary(&meta.transcript_path, &entry.session_id) {
+            body["title"] = serde_json::json!(title);
         }
 
         let resp = self

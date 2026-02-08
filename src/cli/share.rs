@@ -12,17 +12,15 @@ pub async fn run(workspace: Option<String>) -> Result<()> {
     let site_url = std::env::var("THREADER_CONVEX_SITE_URL")
         .unwrap_or_else(|_| "https://ceaseless-shepherd-756.convex.site".to_string());
 
-    let body = if let Some(ref ws) = workspace {
-        serde_json::json!({ "workspace": ws })
-    } else {
-        serde_json::json!({ "visibility": "public" })
-    };
-
     let client = reqwest::Client::new();
     let resp = client
         .post(format!("{site_url}/api/sessions/{session_id}/share"))
         .bearer_auth(&token)
-        .json(&body)
+        .json(&if let Some(ref ws) = workspace {
+            serde_json::json!({ "workspace": ws })
+        } else {
+            serde_json::json!({ "visibility": "public" })
+        })
         .send()
         .await
         .context("Failed to reach Threader cloud")?;

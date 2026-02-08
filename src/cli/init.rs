@@ -20,14 +20,6 @@ pub fn init_core() -> Result<()> {
 
     install_hooks()?;
 
-    #[cfg(target_os = "macos")]
-    {
-        match super::app_bundle::create_app_bundle() {
-            Ok(()) => println!("URL scheme registered (threader://)."),
-            Err(e) => eprintln!("Warning: failed to register URL scheme: {e}"),
-        }
-    }
-
     Ok(())
 }
 

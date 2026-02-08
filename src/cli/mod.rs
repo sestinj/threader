@@ -1,11 +1,9 @@
-pub mod app_bundle;
 pub mod debug;
 pub mod hook;
 pub mod hydrate;
 pub mod init;
 pub mod resume;
 pub mod share;
-pub mod terminal;
 
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -55,12 +53,6 @@ enum Command {
     /// Show current authenticated user
     Whoami,
 
-    /// Handle a threader:// deep link URL
-    HandleUrl {
-        /// The full URL (e.g. threader://resume/<sessionId>?cwd=<path>)
-        url: String,
-    },
-
     /// Resume a Claude Code session (downloads from cloud if needed)
     Resume {
         /// The session ID to resume
@@ -68,10 +60,17 @@ enum Command {
     },
 
     /// Share the current session and print the URL
-    Share,
+    Share {
+        /// Share with a specific workspace (by slug) instead of making public
+        #[arg(short, long)]
+        workspace: Option<String>,
+    },
 
     /// Check for and install updates
     Update,
+
+    /// Print the current access token (for scripting)
+    Token,
 
     /// Debug transcript sync issues
     Debug {
@@ -143,9 +142,20 @@ impl Cli {
                 show_status(base_dir)
             }
             Command::Whoami => show_whoami(),
-            Command::HandleUrl { url } => resume::handle_url(&url).await,
             Command::Resume { session_id } => resume::resume_session(&session_id).await,
-            Command::Share => share::run().await,
+            Command::Share { workspace } => share::run(workspace).await,
+            Command::Token => {
+                match crate::auth::get_token().await {
+                    Ok(token) => {
+                        print!("{token}");
+                        Ok(())
+                    }
+                    Err(e) => {
+                        eprintln!("Not authenticated: {e}");
+                        std::process::exit(1);
+                    }
+                }
+            }
             Command::Update => crate::sync::updater::run_manual_update().await,
             Command::Debug { command } => debug::run(command).await,
         }

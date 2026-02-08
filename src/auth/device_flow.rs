@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use tracing::{info, warn};
 
-use super::{AuthError, Credentials, CLIENT_ID};
+use super::{AuthError, Credentials, client_id};
 
 #[derive(Debug, Deserialize)]
 struct DeviceAuthResponse {
@@ -35,11 +35,12 @@ struct ErrorResponse {
 
 pub async fn login() -> Result<Credentials, AuthError> {
     let client = reqwest::Client::new();
+    let cid = client_id();
 
     // Step 1: Initiate device flow
     let resp = client
         .post("https://api.workos.com/user_management/authorize/device")
-        .form(&[("client_id", CLIENT_ID), ("screen_hint", "sign-up")])
+        .form(&[("client_id", cid.as_str()), ("screen_hint", "sign-up")])
         .send()
         .await?;
 
@@ -86,7 +87,7 @@ pub async fn login() -> Result<Credentials, AuthError> {
                     "urn:ietf:params:oauth:grant-type:device_code",
                 ),
                 ("device_code", &device.device_code),
-                ("client_id", CLIENT_ID),
+                ("client_id", cid.as_str()),
             ])
             .send()
             .await?;

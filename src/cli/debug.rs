@@ -36,6 +36,9 @@ pub enum DebugCommand {
         #[arg(long, default_value = "20")]
         max_diffs: usize,
     },
+
+    /// Print the session ID that `share` would resolve (for scripting)
+    Resolve,
 }
 
 /// Convex HTTP endpoint base URL (same as uploader.rs).
@@ -61,6 +64,11 @@ pub async fn run(command: DebugCommand) -> Result<()> {
             session_id,
             max_diffs,
         } => cmd_diff(&session_id, max_diffs).await,
+        DebugCommand::Resolve => {
+            let session_id = crate::cli::share::resolve_current_session()?;
+            print!("{session_id}");
+            Ok(())
+        }
     }
 }
 

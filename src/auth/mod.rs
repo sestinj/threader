@@ -29,7 +29,11 @@ pub enum AuthError {
     Http(#[from] reqwest::Error),
 }
 
-const CLIENT_ID: &str = "client_01KFE40Z1FZ1NJQKHTNNPPWZ3C";
+const DEFAULT_CLIENT_ID: &str = "client_01KFE40Z1FZ1NJQKHTNNPPWZ3C";
+
+pub fn client_id() -> String {
+    std::env::var("THREADER_WORKOS_CLIENT_ID").unwrap_or_else(|_| DEFAULT_CLIENT_ID.to_string())
+}
 
 /// Get a valid access token, refreshing if needed.
 pub async fn get_token() -> Result<String, AuthError> {
@@ -54,11 +58,12 @@ pub async fn get_token() -> Result<String, AuthError> {
 
 async fn refresh(refresh_token: &str) -> Result<String, AuthError> {
     let client = reqwest::Client::new();
+    let cid = client_id();
     let resp = client
         .post("https://api.workos.com/user_management/authenticate")
         .form(&[
             ("grant_type", "refresh_token"),
-            ("client_id", CLIENT_ID),
+            ("client_id", cid.as_str()),
             ("refresh_token", refresh_token),
         ])
         .send()

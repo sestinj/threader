@@ -1,37 +1,16 @@
-# Threader
+# 🧵 Threader
 
-Sync your [Claude Code](https://claude.ai) sessions to the cloud for easy sharing, organization, and analysis.
+Sync and share [Claude Code](https://claude.ai) threads. Private by default.
 
 ## Install
 
-### Quick install (macOS / Linux)
+### Quick install
 
 ```sh
 curl -fsSL https://threader.sh/install.sh | sh
 ```
 
-### Homebrew
-
-```sh
-brew tap sestinj/tap
-brew install threader
-```
-
-### From source
-
-```sh
-cargo install --git https://github.com/sestinj/threader
-```
-
-## Getting started
-
-```sh
-threader login    # authenticate via browser
-threader init     # install Claude Code hooks
-threader start    # start the background daemon
-```
-
-That's it. Threader runs invisibly in the background, syncing your sessions to your dashboard at [threader.sh](https://threader.sh).
+That's it. The install script will create Claude Code hooks and start the daemon for you. Threader runs invisibly in the background, syncing your sessions to your dashboard at [threader.sh](https://threader.sh).
 
 ## Commands
 

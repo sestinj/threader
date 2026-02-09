@@ -36,7 +36,10 @@ pub fn install_hooks() -> Result<()> {
         if agent.detect() {
             match agent.install(&threader_cmd) {
                 Ok(()) => {
-                    println!("  \u{2713} {} \u{2014} hooks installed", agent.display_name());
+                    println!(
+                        "  \u{2713} {} \u{2014} hooks installed",
+                        agent.display_name()
+                    );
                     connected += 1;
                 }
                 Err(e) => {
@@ -60,7 +63,9 @@ pub fn install_hooks() -> Result<()> {
             if connected == 1 { "" } else { "s" }
         );
     } else {
-        println!("\nNo coding agents detected. Install a supported agent and run `threader init` again.");
+        println!(
+            "\nNo coding agents detected. Install a supported agent and run `threader init` again."
+        );
     }
 
     Ok(())

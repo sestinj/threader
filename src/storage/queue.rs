@@ -43,7 +43,10 @@ impl UploadQueue {
         fs::write(&tmp, &json)?;
         fs::rename(&tmp, &path)?;
 
-        debug!("Enqueued {:?} for session {}", entry.action, entry.session_id);
+        debug!(
+            "Enqueued {:?} for session {}",
+            entry.action, entry.session_id
+        );
         Ok(())
     }
 

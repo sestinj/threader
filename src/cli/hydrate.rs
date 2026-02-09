@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -15,7 +15,10 @@ pub async fn hydrate_session(session_id: &str, cwd: &str) -> Result<()> {
     let jsonl_path = project_dir.join(format!("{session_id}.jsonl"));
 
     if jsonl_path.exists() {
-        debug!("Session transcript already exists locally: {}", jsonl_path.display());
+        debug!(
+            "Session transcript already exists locally: {}",
+            jsonl_path.display()
+        );
         return Ok(());
     }
 
@@ -43,7 +46,10 @@ pub async fn hydrate_session(session_id: &str, cwd: &str) -> Result<()> {
         anyhow::bail!("Failed to download transcript ({status}): {text}");
     }
 
-    let transcript = resp.text().await.context("Failed to read transcript body")?;
+    let transcript = resp
+        .text()
+        .await
+        .context("Failed to read transcript body")?;
 
     // Ensure project directory exists
     fs::create_dir_all(&project_dir)
@@ -73,7 +79,7 @@ fn cc_project_dir(cwd: &str) -> Result<PathBuf> {
 }
 
 /// Append an entry to sessions-index.json so CC knows about the hydrated session.
-fn update_sessions_index(project_dir: &PathBuf, session_id: &str, cwd: &str) -> Result<()> {
+fn update_sessions_index(project_dir: &Path, session_id: &str, cwd: &str) -> Result<()> {
     let index_path = project_dir.join("sessions-index.json");
 
     let mut index: serde_json::Value = if index_path.exists() {

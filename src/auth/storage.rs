@@ -27,9 +27,8 @@ pub fn delete() -> Result<()> {
 // --- Encrypted file backend ---
 
 fn credentials_path() -> Result<PathBuf> {
-    let proj =
-        directories::ProjectDirs::from("com", "threader", "daemon")
-            .context("could not determine data directory")?;
+    let proj = directories::ProjectDirs::from("com", "threader", "daemon")
+        .context("could not determine data directory")?;
     let dir = proj.data_local_dir();
     fs::create_dir_all(dir)?;
     Ok(dir.join("credentials.enc"))
@@ -103,8 +102,8 @@ fn read_machine_id() -> Result<String> {
 }
 
 fn encrypt(plaintext: &[u8], key: &[u8; 32]) -> Result<Vec<u8>> {
-    use chacha20poly1305::aead::{Aead, KeyInit, OsRng};
     use chacha20poly1305::aead::rand_core::RngCore;
+    use chacha20poly1305::aead::{Aead, KeyInit, OsRng};
     use chacha20poly1305::XChaCha20Poly1305;
 
     let cipher = XChaCha20Poly1305::new(key.into());

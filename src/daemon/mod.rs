@@ -14,8 +14,8 @@ use crate::storage::local::LocalStorage;
 use crate::storage::queue::UploadQueue;
 use crate::sync::cost;
 use crate::sync::cursor::CursorTracker;
-use crate::sync::updater::AutoUpdater;
 use crate::sync::poller::TranscriptPoller;
+use crate::sync::updater::AutoUpdater;
 use crate::sync::uploader::BackgroundUploader;
 
 use self::socket::SocketServer;
@@ -167,7 +167,10 @@ fn replay_spool(storage: &LocalStorage, queue: &UploadQueue) {
                         HookEvent::SessionEnd => handle_session_end(storage, queue, &msg),
                     };
                     if let Err(e) = result {
-                        error!("Error replaying spooled {:?} for {}: {}", msg.event, session_id, e);
+                        error!(
+                            "Error replaying spooled {:?} for {}: {}",
+                            msg.event, session_id, e
+                        );
                     } else {
                         replayed += 1;
                     }
@@ -210,27 +213,37 @@ fn catch_up_active_sessions(storage: &LocalStorage, queue: &UploadQueue) {
             Err(_) => continue,
         };
 
-        let (new_lines, total_lines) = match storage.read_transcript_lines(&meta.transcript_path, last_line) {
-            Ok(r) => r,
-            Err(_) => continue,
-        };
+        let (new_lines, total_lines) =
+            match storage.read_transcript_lines(&meta.transcript_path, last_line) {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
 
         if new_lines.is_empty() {
             continue;
         }
 
         if let Err(e) = storage.append_transcript(session_id, &new_lines) {
-            warn!("Catch-up: failed to append transcript for {}: {}", session_id, e);
+            warn!(
+                "Catch-up: failed to append transcript for {}: {}",
+                session_id, e
+            );
             continue;
         }
 
         if let Err(e) = queue.enqueue_append(session_id, last_line, total_lines) {
-            warn!("Catch-up: failed to enqueue append for {}: {}", session_id, e);
+            warn!(
+                "Catch-up: failed to enqueue append for {}: {}",
+                session_id, e
+            );
             continue;
         }
 
         if let Err(e) = tracker.advance(session_id, total_lines) {
-            warn!("Catch-up: failed to advance cursor for {}: {}", session_id, e);
+            warn!(
+                "Catch-up: failed to advance cursor for {}: {}",
+                session_id, e
+            );
             continue;
         }
 
@@ -260,7 +273,10 @@ fn handle_event(storage: &LocalStorage, queue: &UploadQueue, msg: &HookMessage) 
     };
 
     if let Err(e) = result {
-        error!("Error handling {:?} for session {}: {}", msg.event, session_id, e);
+        error!(
+            "Error handling {:?} for session {}: {}",
+            msg.event, session_id, e
+        );
     }
 }
 
@@ -335,11 +351,7 @@ fn refresh_cost(storage: &LocalStorage, session_id: &str) {
     }
 }
 
-fn handle_stop(
-    storage: &LocalStorage,
-    queue: &UploadQueue,
-    msg: &HookMessage,
-) -> Result<()> {
+fn handle_stop(storage: &LocalStorage, queue: &UploadQueue, msg: &HookMessage) -> Result<()> {
     let input = &msg.input;
     ensure_session(storage, queue, msg)?;
     let tracker = CursorTracker::new(storage);
@@ -381,7 +393,10 @@ fn handle_session_end(
     msg: &HookMessage,
 ) -> Result<()> {
     let input = &msg.input;
-    info!("Session ended: {} (reason: {:?})", input.session_id, input.reason);
+    info!(
+        "Session ended: {} (reason: {:?})",
+        input.session_id, input.reason
+    );
     ensure_session(storage, queue, msg)?;
 
     // Sync any remaining lines

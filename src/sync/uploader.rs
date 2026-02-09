@@ -175,9 +175,7 @@ impl BackgroundUploader {
             .join("failed");
         fs::create_dir_all(&failed_dir)?;
 
-        let filename = path
-            .file_name()
-            .context("Queue entry has no filename")?;
+        let filename = path.file_name().context("Queue entry has no filename")?;
         let dest = failed_dir.join(filename);
         fs::rename(path, &dest)?;
         debug!("Moved failed entry to {}", dest.display());
@@ -248,8 +246,9 @@ impl BackgroundUploader {
         // The local copy can diverge due to concurrent poller + hook appends.
         let meta = self.storage.read_meta(&entry.session_id)?;
         let transcript_path = &meta.transcript_path;
-        let content = std::fs::read_to_string(transcript_path)
-            .with_context(|| format!("Failed to read source transcript for {}", entry.session_id))?;
+        let content = std::fs::read_to_string(transcript_path).with_context(|| {
+            format!("Failed to read source transcript for {}", entry.session_id)
+        })?;
 
         let all_lines: Vec<&str> = content.lines().collect();
 
@@ -264,8 +263,7 @@ impl BackgroundUploader {
         let lines_to_send: Vec<&str> = all_lines[start..end].to_vec();
 
         // Process lines through image processor — rewrite image blocks with URLs
-        let image_processor =
-            ImageProcessor::new(self.client.clone(), convex_site_url());
+        let image_processor = ImageProcessor::new(self.client.clone(), convex_site_url());
         let mut processed_lines: Vec<String> = Vec::with_capacity(lines_to_send.len());
         for line in &lines_to_send {
             if line_has_images(line) {
@@ -308,7 +306,8 @@ impl BackgroundUploader {
             .client
             .post(format!(
                 "{}/api/sessions/{}/append",
-                convex_site_url(), entry.session_id
+                convex_site_url(),
+                entry.session_id
             ))
             .bearer_auth(token)
             .json(&body)
@@ -361,7 +360,8 @@ impl BackgroundUploader {
             .client
             .post(format!(
                 "{}/api/sessions/{}/finalize",
-                convex_site_url(), entry.session_id
+                convex_site_url(),
+                entry.session_id
             ))
             .bearer_auth(token)
             .json(&body)

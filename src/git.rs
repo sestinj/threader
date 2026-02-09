@@ -24,7 +24,10 @@ pub fn resolve_repo(cwd: &str) -> Option<String> {
 /// - HTTPS: `https://github.com/owner/repo`
 fn parse_owner_repo(url: &str) -> Option<String> {
     // SSH: git@host:owner/repo.git
-    if let Some(path) = url.strip_prefix("git@").and_then(|s| s.split_once(':').map(|(_, p)| p)) {
+    if let Some(path) = url
+        .strip_prefix("git@")
+        .and_then(|s| s.split_once(':').map(|(_, p)| p))
+    {
         let path = path.strip_suffix(".git").unwrap_or(path);
         if path.contains('/') {
             return Some(path.to_string());

@@ -48,18 +48,19 @@ impl SocketServer {
     }
 }
 
-async fn handle_connection(
-    mut stream: UnixStream,
-    tx: mpsc::Sender<HookMessage>,
-) -> Result<()> {
+async fn handle_connection(mut stream: UnixStream, tx: mpsc::Sender<HookMessage>) -> Result<()> {
     let mut buf = Vec::new();
     stream.read_to_end(&mut buf).await?;
 
-    let msg: HookMessage =
-        serde_json::from_slice(&buf).context("Failed to parse hook message")?;
+    let msg: HookMessage = serde_json::from_slice(&buf).context("Failed to parse hook message")?;
 
-    debug!("Received {:?} for session {}", msg.event, msg.input.session_id);
-    tx.send(msg).await.context("Failed to send message to session manager")?;
+    debug!(
+        "Received {:?} for session {}",
+        msg.event, msg.input.session_id
+    );
+    tx.send(msg)
+        .await
+        .context("Failed to send message to session manager")?;
 
     Ok(())
 }

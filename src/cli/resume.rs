@@ -77,7 +77,10 @@ async fn resolve_session_cwd(session_id: &str) -> Result<String> {
         anyhow::bail!("Session not found ({status}): {text}");
     }
 
-    let body: serde_json::Value = resp.json().await.context("Failed to parse session response")?;
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .context("Failed to parse session response")?;
 
     body["session"]["cwd"]
         .as_str()

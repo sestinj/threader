@@ -91,8 +91,8 @@ fn resolve_session_id(storage: &LocalStorage, partial: &str) -> Result<String> {
 
 /// Count lines in a file.
 fn count_lines(path: &Path) -> Result<u64> {
-    let file = std::fs::File::open(path)
-        .with_context(|| format!("Failed to open {}", path.display()))?;
+    let file =
+        std::fs::File::open(path).with_context(|| format!("Failed to open {}", path.display()))?;
     let reader = BufReader::new(file);
     let mut count = 0u64;
     for line in reader.lines() {
@@ -104,10 +104,13 @@ fn count_lines(path: &Path) -> Result<u64> {
 
 /// Read all lines from a file.
 fn read_lines(path: &Path) -> Result<Vec<String>> {
-    let file = std::fs::File::open(path)
-        .with_context(|| format!("Failed to open {}", path.display()))?;
+    let file =
+        std::fs::File::open(path).with_context(|| format!("Failed to open {}", path.display()))?;
     let reader = BufReader::new(file);
-    reader.lines().collect::<std::io::Result<Vec<_>>>().map_err(Into::into)
+    reader
+        .lines()
+        .collect::<std::io::Result<Vec<_>>>()
+        .map_err(Into::into)
 }
 
 /// Format a duration as human-readable (e.g. "2h ago", "3d ago").
@@ -146,8 +149,8 @@ async fn cmd_list() -> Result<()> {
     }
 
     println!(
-        "{BOLD}{:<38}  {:<10}  {:>6}  {:>6}  {:>6}  {:>5}  {}{RESET}",
-        "Session ID", "Status", "Source", "Local", "Synced", "Queue", "Age"
+        "{BOLD}{:<38}  {:<10}  {:>6}  {:>6}  {:>6}  {:>5}  Age{RESET}",
+        "Session ID", "Status", "Source", "Local", "Synced", "Queue"
     );
 
     let mut rows: Vec<(String, SessionMeta, Option<SyncState>)> = Vec::new();
@@ -214,6 +217,7 @@ async fn cmd_list() -> Result<()> {
 
 // ── inspect ───────────────────────────────────────────────────────────
 
+#[allow(clippy::too_many_lines)]
 async fn cmd_inspect(partial: &str) -> Result<()> {
     let base_dir = LocalStorage::default_base_dir()?;
     let storage = LocalStorage::new(base_dir.clone());
@@ -284,9 +288,7 @@ async fn cmd_inspect(partial: &str) -> Result<()> {
     println!("{BOLD}Local Transcript{RESET}");
     println!("  Path:    {}", local_path.display());
     if local_path.exists() {
-        let size = std::fs::metadata(&local_path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let size = std::fs::metadata(&local_path).map(|m| m.len()).unwrap_or(0);
         let lines = count_lines(&local_path).unwrap_or(0);
         println!("  Size:    {} bytes", size);
         println!("  Lines:   {lines}");
@@ -330,10 +332,7 @@ async fn cmd_inspect(partial: &str) -> Result<()> {
         println!("  (none)");
     } else {
         for (path, entry) in &session_entries {
-            let filename = path
-                .file_name()
-                .and_then(|f| f.to_str())
-                .unwrap_or("?");
+            let filename = path.file_name().and_then(|f| f.to_str()).unwrap_or("?");
             println!(
                 "  {:?}  lines {}-{}  attempts: {}  {}",
                 entry.action, entry.lines_start, entry.lines_end, entry.attempts, filename
@@ -369,9 +368,7 @@ async fn cmd_verify(partial: &str) -> Result<()> {
     let remote_lines = match fetch_remote_transcript(&sid).await {
         Ok(lines) => Some(lines),
         Err(e) => {
-            eprintln!(
-                "{YELLOW}Could not fetch remote transcript: {e}{RESET}"
-            );
+            eprintln!("{YELLOW}Could not fetch remote transcript: {e}{RESET}");
             None
         }
     };
@@ -541,7 +538,10 @@ async fn cmd_diff(partial: &str, max_diffs: usize) -> Result<()> {
     let remote_lines = fetch_remote_transcript(&sid).await?;
 
     if local_lines == remote_lines {
-        println!("{GREEN}Local and remote transcripts are identical ({} lines){RESET}", local_lines.len());
+        println!(
+            "{GREEN}Local and remote transcripts are identical ({} lines){RESET}",
+            local_lines.len()
+        );
         return Ok(());
     }
 
@@ -556,9 +556,7 @@ async fn cmd_diff(partial: &str, max_diffs: usize) -> Result<()> {
 
     while i < local_lines.len() || j < remote_lines.len() {
         if diff_count >= max_diffs {
-            println!(
-                "{DIM}... (more differences not shown, use --max-diffs to increase){RESET}"
-            );
+            println!("{DIM}... (more differences not shown, use --max-diffs to increase){RESET}");
             break;
         }
 
@@ -582,11 +580,11 @@ async fn cmd_diff(partial: &str, max_diffs: usize) -> Result<()> {
                 }
 
                 // Check if remote has a duplicate of the local line
-                if j + 1 < remote_lines.len() && remote_lines[j] == remote_lines[j + 1] && remote_lines[j] == *l {
-                    println!(
-                        "{BOLD}@@ line {} (remote) @@{RESET}",
-                        j + 1
-                    );
+                if j + 1 < remote_lines.len()
+                    && remote_lines[j] == remote_lines[j + 1]
+                    && remote_lines[j] == *l
+                {
+                    println!("{BOLD}@@ line {} (remote) @@{RESET}", j + 1);
                     println!("  {}", truncate_line(l, 120));
                     println!(
                         "{GREEN}+ {}   (duplicate in remote){RESET}",
@@ -611,19 +609,13 @@ async fn cmd_diff(partial: &str, max_diffs: usize) -> Result<()> {
                 diff_count += 1;
             }
             (Some(l), None) => {
-                println!(
-                    "{BOLD}@@ line {} (local only) @@{RESET}",
-                    i + 1
-                );
+                println!("{BOLD}@@ line {} (local only) @@{RESET}", i + 1);
                 println!("{RED}- {}{RESET}", truncate_line(l, 120));
                 i += 1;
                 diff_count += 1;
             }
             (None, Some(r)) => {
-                println!(
-                    "{BOLD}@@ line {} (remote only) @@{RESET}",
-                    j + 1
-                );
+                println!("{BOLD}@@ line {} (remote only) @@{RESET}", j + 1);
                 println!("{GREEN}+ {}{RESET}", truncate_line(r, 120));
                 j += 1;
                 diff_count += 1;
@@ -678,7 +670,10 @@ async fn fetch_remote_transcript(session_id: &str) -> Result<Vec<String>> {
         bail!("Remote fetch failed ({status}): {text}");
     }
 
-    let body: serde_json::Value = resp.json().await.context("Failed to parse remote response")?;
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .context("Failed to parse remote response")?;
 
     // Expected response: { "lines": [...], "total": N }
     let lines = body

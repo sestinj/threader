@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use tracing::{info, warn};
 
-use super::{AuthError, Credentials, client_id};
+use super::{client_id, AuthError, Credentials};
 
 #[derive(Debug, Deserialize)]
 struct DeviceAuthResponse {
@@ -24,7 +24,9 @@ pub struct AuthResponse {
 pub struct AuthUser {
     pub id: String,
     pub email: Option<String>,
+    #[allow(dead_code)]
     pub first_name: Option<String>,
+    #[allow(dead_code)]
     pub last_name: Option<String>,
 }
 
@@ -69,8 +71,8 @@ pub async fn login() -> Result<Credentials, AuthError> {
 
     // Step 3: Poll for completion
     let mut interval = device.interval;
-    let deadline = tokio::time::Instant::now()
-        + tokio::time::Duration::from_secs(device.expires_in);
+    let deadline =
+        tokio::time::Instant::now() + tokio::time::Duration::from_secs(device.expires_in);
 
     loop {
         tokio::time::sleep(tokio::time::Duration::from_secs(interval)).await;
@@ -82,10 +84,7 @@ pub async fn login() -> Result<Credentials, AuthError> {
         let resp = client
             .post("https://api.workos.com/user_management/authenticate")
             .form(&[
-                (
-                    "grant_type",
-                    "urn:ietf:params:oauth:grant-type:device_code",
-                ),
+                ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
                 ("device_code", &device.device_code),
                 ("client_id", cid.as_str()),
             ])
@@ -96,8 +95,8 @@ pub async fn login() -> Result<Credentials, AuthError> {
         let body = resp.text().await?;
 
         if status.is_success() {
-            let auth: AuthResponse = serde_json::from_str(&body)
-                .map_err(|e| AuthError::RefreshFailed(e.to_string()))?;
+            let auth: AuthResponse =
+                serde_json::from_str(&body).map_err(|e| AuthError::RefreshFailed(e.to_string()))?;
 
             let creds = Credentials {
                 access_token: auth.access_token.clone(),
@@ -107,8 +106,7 @@ pub async fn login() -> Result<Credentials, AuthError> {
                 email: auth.user.email,
             };
 
-            super::storage::store(&creds)
-                .map_err(|e| AuthError::Storage(e.to_string()))?;
+            super::storage::store(&creds).map_err(|e| AuthError::Storage(e.to_string()))?;
 
             return Ok(creds);
         }

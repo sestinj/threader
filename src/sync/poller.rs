@@ -29,7 +29,10 @@ impl TranscriptPoller {
 
     /// Run the polling loop. Checks active sessions for new transcript lines periodically.
     pub async fn run(&self) -> Result<()> {
-        info!("Transcript poller started (interval={}s)", POLL_INTERVAL_SECS);
+        info!(
+            "Transcript poller started (interval={}s)",
+            POLL_INTERVAL_SECS
+        );
 
         loop {
             time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
@@ -64,22 +67,30 @@ impl TranscriptPoller {
                 Err(_) => continue,
             };
 
-            let (new_lines, total_lines) =
-                match self.storage.read_transcript_lines(&meta.transcript_path, last_line) {
-                    Ok(r) => r,
-                    Err(_) => continue,
-                };
+            let (new_lines, total_lines) = match self
+                .storage
+                .read_transcript_lines(&meta.transcript_path, last_line)
+            {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
 
             if new_lines.is_empty() {
                 continue;
             }
 
             if let Err(e) = self.storage.append_transcript(session_id, &new_lines) {
-                warn!("Poller: failed to append transcript for {}: {}", session_id, e);
+                warn!(
+                    "Poller: failed to append transcript for {}: {}",
+                    session_id, e
+                );
                 continue;
             }
 
-            if let Err(e) = self.queue.enqueue_append(session_id, last_line, total_lines) {
+            if let Err(e) = self
+                .queue
+                .enqueue_append(session_id, last_line, total_lines)
+            {
                 warn!("Poller: failed to enqueue append for {}: {}", session_id, e);
                 continue;
             }
@@ -112,7 +123,10 @@ impl TranscriptPoller {
                     m.total_cache_read_tokens = Some(c.total_cache_read_tokens);
                     m.total_cache_creation_tokens = Some(c.total_cache_creation_tokens);
                     if let Err(e) = self.storage.update_meta(&m) {
-                        warn!("Poller: failed to update cost meta for {}: {}", meta.session_id, e);
+                        warn!(
+                            "Poller: failed to update cost meta for {}: {}",
+                            meta.session_id, e
+                        );
                     }
                 }
             }

@@ -18,9 +18,11 @@ pub trait Agent: Send + Sync {
     fn install(&self, threader_cmd: &str) -> Result<()>;
 
     /// Remove threader hooks from this agent's configuration.
+    #[allow(dead_code)]
     fn uninstall(&self) -> Result<()>;
 
     /// Check whether threader hooks are currently installed for this agent.
+    #[allow(dead_code)]
     fn is_installed(&self) -> Result<bool>;
 
     /// Detect whether this agent is installed on the system.
@@ -45,7 +47,8 @@ pub fn get_agent(name: &str) -> Option<Box<dyn Agent>> {
 
 /// Resolve the absolute path to the threader binary, preferring ~/.local/bin/threader.
 pub fn resolve_threader_cmd() -> Result<String> {
-    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+    let home =
+        dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
     let threader_bin = home.join(".local").join("bin").join("threader");
     if threader_bin.exists() {
         Ok(threader_bin

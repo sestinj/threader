@@ -26,7 +26,9 @@ impl Agent for ClaudeCodeAgent {
             let data = fs::read_to_string(&settings_path)?;
             serde_json::from_str(&data).unwrap_or_else(|_| serde_json::json!({}))
         } else {
-            fs::create_dir_all(settings_path.parent().unwrap())?;
+            if let Some(parent) = settings_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
             serde_json::json!({})
         };
 
@@ -36,9 +38,7 @@ impl Agent for ClaudeCodeAgent {
             .entry("hooks")
             .or_insert_with(|| serde_json::json!({}));
 
-        let hooks_obj = hooks
-            .as_object_mut()
-            .context("hooks is not an object")?;
+        let hooks_obj = hooks.as_object_mut().context("hooks is not an object")?;
 
         // Install each hook, preserving existing hooks
         for (event, subcommand) in [
@@ -111,8 +111,7 @@ impl Agent for ClaudeCodeAgent {
             .and_then(|h| h.as_object_mut())
         {
             for event in ["SessionStart", "Stop", "SessionEnd"] {
-                if let Some(event_hooks) = hooks_obj.get_mut(event).and_then(|h| h.as_array_mut())
-                {
+                if let Some(event_hooks) = hooks_obj.get_mut(event).and_then(|h| h.as_array_mut()) {
                     event_hooks.retain(|matcher| {
                         let is_threader = matcher
                             .get("hooks")

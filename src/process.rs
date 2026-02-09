@@ -25,10 +25,7 @@ fn get_ppid(pid: u32) -> Option<u32> {
         .args(["-o", "ppid=", "-p", &pid.to_string()])
         .output()
         .ok()?;
-    String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .parse()
-        .ok()
+    String::from_utf8_lossy(&output.stdout).trim().parse().ok()
 }
 
 fn get_process_name(pid: u32) -> Option<String> {

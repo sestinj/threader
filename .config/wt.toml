@@ -1,0 +1,7 @@
+[post-create]
+deps = """
+if [ -d {{ repo_root }}/target ] && [ ! -e target ]; then
+  echo "CoW-cloning target/..."
+  cp -c -r {{ repo_root }}/target . 2>/dev/null || cp -r {{ repo_root }}/target .
+fi
+"""

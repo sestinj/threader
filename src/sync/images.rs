@@ -30,24 +30,18 @@ impl ImageProcessor {
         }
     }
 
-    async fn try_process_line(
-        &self,
-        line: &str,
-        session_id: &str,
-        token: &str,
-    ) -> Result<String> {
+    async fn try_process_line(&self, line: &str, session_id: &str, token: &str) -> Result<String> {
         let mut parsed: serde_json::Value =
             serde_json::from_str(line).context("Failed to parse transcript line as JSON")?;
 
-        let content = match parsed
-            .get_mut("message")
-            .and_then(|m| m.get_mut("content"))
-        {
+        let content = match parsed.get_mut("message").and_then(|m| m.get_mut("content")) {
             Some(c) if c.is_array() => c,
             _ => return Ok(line.to_string()),
         };
 
-        let blocks = content.as_array_mut().unwrap();
+        let Some(blocks) = content.as_array_mut() else {
+            return Ok(line.to_string());
+        };
         let mut modified = false;
 
         for block in blocks.iter_mut() {
@@ -171,7 +165,10 @@ impl ImageProcessor {
             anyhow::bail!("Image upload failed ({}): {}", status, text);
         }
 
-        let body: serde_json::Value = resp.json().await.context("Failed to parse upload response")?;
+        let body: serde_json::Value = resp
+            .json()
+            .await
+            .context("Failed to parse upload response")?;
         let image_url = body
             .get("url")
             .and_then(|u| u.as_str())
@@ -225,7 +222,10 @@ fn compress_image_if_needed(image_bytes: &[u8], content_type: &str) -> (Vec<u8>,
     let img = match image::load_from_memory(image_bytes) {
         Ok(img) => img,
         Err(e) => {
-            debug!("Cannot decode image for compression ({}), using original", e);
+            debug!(
+                "Cannot decode image for compression ({}), using original",
+                e
+            );
             return (image_bytes.to_vec(), content_type.to_string());
         }
     };

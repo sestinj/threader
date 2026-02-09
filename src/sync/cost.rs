@@ -47,10 +47,7 @@ struct TranscriptLine {
 /// last/final streaming update per request), and sums usage fields.
 pub fn read_session_cost(transcript_path: &Path) -> Result<Option<SessionCost>> {
     if !transcript_path.exists() {
-        debug!(
-            "Transcript not found at {}",
-            transcript_path.display()
-        );
+        debug!("Transcript not found at {}", transcript_path.display());
         return Ok(None);
     }
 

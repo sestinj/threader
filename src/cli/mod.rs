@@ -13,7 +13,11 @@ use crate::hooks::HookEvent;
 use crate::storage::local::LocalStorage;
 
 #[derive(Parser)]
-#[command(name = "threader", about = "Sync and share Claude Code sessions. Private by default", version)]
+#[command(
+    name = "threader",
+    about = "Sync and share Claude Code sessions. Private by default",
+    version
+)]
 pub struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -119,19 +123,17 @@ impl Cli {
                 hook::handle_hook(hook_event, &agent)
             }
             Command::Init => init::run_init(),
-            Command::Login => {
-                match crate::auth::device_flow::login().await {
-                    Ok(creds) => {
-                        let who = creds.email.as_deref().unwrap_or(&creds.user_id);
-                        println!("Logged in as {who}");
-                        Ok(())
-                    }
-                    Err(e) => {
-                        eprintln!("Login failed: {e}");
-                        std::process::exit(1);
-                    }
+            Command::Login => match crate::auth::device_flow::login().await {
+                Ok(creds) => {
+                    let who = creds.email.as_deref().unwrap_or(&creds.user_id);
+                    println!("Logged in as {who}");
+                    Ok(())
                 }
-            }
+                Err(e) => {
+                    eprintln!("Login failed: {e}");
+                    std::process::exit(1);
+                }
+            },
             Command::Logout => {
                 crate::auth::logout().map_err(|e| anyhow::anyhow!("{e}"))?;
                 println!("Logged out");
@@ -144,18 +146,16 @@ impl Cli {
             Command::Whoami => show_whoami(),
             Command::Resume { session_id } => resume::resume_session(&session_id).await,
             Command::Share { workspace } => share::run(workspace).await,
-            Command::Token => {
-                match crate::auth::get_token().await {
-                    Ok(token) => {
-                        print!("{token}");
-                        Ok(())
-                    }
-                    Err(e) => {
-                        eprintln!("Not authenticated: {e}");
-                        std::process::exit(1);
-                    }
+            Command::Token => match crate::auth::get_token().await {
+                Ok(token) => {
+                    print!("{token}");
+                    Ok(())
                 }
-            }
+                Err(e) => {
+                    eprintln!("Not authenticated: {e}");
+                    std::process::exit(1);
+                }
+            },
             Command::Update => crate::sync::updater::run_manual_update().await,
             Command::Debug { command } => debug::run(command).await,
         }
@@ -168,6 +168,7 @@ fn read_daemon_pid(base_dir: &std::path::Path) -> Option<u32> {
     let pid_str = std::fs::read_to_string(&pid_path).ok()?;
     let pid: u32 = pid_str.trim().parse().ok()?;
     // Check if the process is still alive (signal 0 = no signal, just check existence)
+    // SAFETY: kill(pid, 0) is a standard POSIX signal check — sends no signal, just tests process existence.
     let alive = unsafe { libc::kill(pid as i32, 0) == 0 };
     if alive {
         Some(pid)
@@ -214,7 +215,9 @@ fn start_daemon(base_dir: &std::path::Path) -> Result<()> {
 
     // Spawn `threader daemon` as a detached background process
     let log_path = base_dir.join("logs").join("daemon.log");
-    std::fs::create_dir_all(log_path.parent().unwrap())?;
+    if let Some(parent) = log_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
 
     let log_file = std::fs::OpenOptions::new()
         .create(true)
@@ -241,6 +244,7 @@ fn stop_daemon(base_dir: &std::path::Path) -> Result<()> {
     let storage = LocalStorage::new(base_dir.to_path_buf());
 
     if let Some(pid) = read_daemon_pid(base_dir) {
+        // SAFETY: SIGTERM is a graceful shutdown signal — standard POSIX process termination.
         unsafe {
             libc::kill(pid as i32, libc::SIGTERM);
         }
@@ -254,7 +258,10 @@ fn stop_daemon(base_dir: &std::path::Path) -> Result<()> {
     // No PID file, but maybe socket is alive
     if is_daemon_running(base_dir, &storage.socket_path()) {
         eprintln!("Daemon appears to be running but no PID file found.");
-        eprintln!("Remove the socket manually: {}", storage.socket_path().display());
+        eprintln!(
+            "Remove the socket manually: {}",
+            storage.socket_path().display()
+        );
         std::process::exit(1);
     }
 

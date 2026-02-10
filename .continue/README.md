@@ -1,6 +1,6 @@
 # Agent Checks Demo
 
-This repo has four [Continue Agent Checks](https://docs.continue.dev/agent-checks) configured in `.continue/agents/`. Here's how to demo them.
+This repo has four [Continue Agents](https://docs.continue.dev/agent-checks) configured in `.continue/agents/`. Here's how to demo them.
 
 ## Agents
 

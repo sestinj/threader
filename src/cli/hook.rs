@@ -42,6 +42,16 @@ pub fn handle_hook(event: HookEvent, agent: &str) -> Result<()> {
             fs::create_dir_all(&pid_dir)?;
             fs::write(pid_dir.join(claude_pid.to_string()), &input.session_id)?;
         }
+
+        // Generate a share slug and display the session URL
+        if let Ok(base) = LocalStorage::default_base_dir() {
+            let slug = nanoid::nanoid!(12);
+            let slug_dir = base.join("share-slugs");
+            if fs::create_dir_all(&slug_dir).is_ok() {
+                let _ = fs::write(slug_dir.join(&input.session_id), &slug);
+            }
+            eprintln!("\u{1f9f5} https://threader.sh/s/{}", slug);
+        }
     }
     if matches!(event, HookEvent::SessionEnd) {
         if let Some(claude_pid) = crate::process::find_claude_ancestor_pid() {

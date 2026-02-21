@@ -220,6 +220,17 @@ impl BackgroundUploader {
             body["repo"] = serde_json::json!(repo);
         }
 
+        // Include client-generated share slug if available
+        if let Ok(base) = LocalStorage::default_base_dir() {
+            let slug_path = base.join("share-slugs").join(&entry.session_id);
+            if let Ok(slug) = fs::read_to_string(&slug_path) {
+                let slug = slug.trim();
+                if !slug.is_empty() {
+                    body["share_slug"] = serde_json::json!(slug);
+                }
+            }
+        }
+
         let url = format!("{}/api/sessions", convex_site_url());
         info!("Creating session {} at {}", entry.session_id, url);
 

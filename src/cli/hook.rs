@@ -50,7 +50,15 @@ pub fn handle_hook(event: HookEvent, agent: &str) -> Result<()> {
             if fs::create_dir_all(&slug_dir).is_ok() {
                 let _ = fs::write(slug_dir.join(&input.session_id), &slug);
             }
-            eprintln!("\u{1f9f5} https://threader.sh/s/{}", slug);
+            let url = format!("\u{1f9f5} https://threader.sh/s/{}", slug);
+            // Output JSON to stdout so Claude Code displays it via systemMessage
+            println!(
+                "{}",
+                serde_json::json!({
+                    "hookSpecificOutput": { "hookEventName": "SessionStart" },
+                    "systemMessage": url
+                })
+            );
         }
     }
     if matches!(event, HookEvent::SessionEnd) {
